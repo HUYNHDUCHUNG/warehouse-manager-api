@@ -34,7 +34,16 @@ const createProduct = async (req, res, next) => {
   };
 const getAllProduct = async (req,res,next) =>{
     try {
-        const products = await Product.findAll()
+        const products = await Product.findAll({
+          include: [
+            {
+              association: 'category',
+              attributes:{
+                include:['name']
+              }
+            }
+          ]
+        })
         return res.json({
             data:products
         })
