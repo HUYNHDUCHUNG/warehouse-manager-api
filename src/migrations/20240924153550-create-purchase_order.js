@@ -2,40 +2,32 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Products', {
+    await queryInterface.createTable('PurchaseOrders', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      product_name: {
+      product_id: {
         type: Sequelize.STRING
       },
-      category_id: {
-        type: Sequelize.INTEGER
-      },
-      description: {
-        type: Sequelize.STRING
-      },
-      unit_calc: {
-        type: Sequelize.STRING
-      },
-      price: {
+      quantity: {
         type: Sequelize.BIGINT
       },
-      inventory_quantity: {
-        type: Sequelize.BIGINT,
-        defaultValue: 0
+      unit_price: {
+        type: Sequelize.BIGINT
       },
-      warehouse_latest: {
-        type: Sequelize.DATE,
-        defaultValue:  Sequelize.NOW
+      total_price: {
+        type: Sequelize.BIGINT
       },
-      quantity_warehouse_latest: {
-        type: Sequelize.BIGINT,
-        defaultValue: 0
+      supplier_id: {
+        type: Sequelize.STRING
       },
+      note: {
+        type: Sequelize.STRING
+      },
+      
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE
@@ -47,6 +39,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Products');
+    await queryInterface.dropTable('PurchaseOrders');
   }
 };
