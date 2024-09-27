@@ -12,7 +12,7 @@ module.exports = {
       supplier_name: {
         type: Sequelize.STRING
       },
-      contrac: {
+      contract: {
         type: Sequelize.STRING
       },
       email: {

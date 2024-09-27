@@ -1,92 +1,118 @@
 const createError = require("http-errors");
-const Supplier = require("~/models/supplier");
+const {PurchaseOrder} = require("~/models");
 
-const createSupplier = async (req, res, next) => {
+const createPurchaseOrder = async (req, res, next) => {
     try {
       const {
-        supplier_name,
-        contract,
-        email,
-        phone,
+        product_id,
+        quantity,
+        unit_price,
+        total_price,
+        supplier_id,
+        note,
+
+
       } = req.body;
   
+      console.log("note:",note)
   
-      const newSupplier = await Supplier.create({
-        supplier_name,
-        contract,
-        email,
-        phone,
+      const newPurchaseOrder = await PurchaseOrder.create({
+        product_id,
+        quantity,
+        unit_price,
+        total_price,
+        supplier_id,
+        note,
       });
+
   
       return res.json({
-        data: newSupplier.toJSON(),
+        data: newPurchaseOrder.toJSON(),
       });
     } catch (error) {
+      console.log(error)
       return next(createError(500));
     }
   };
-// const getAllSupplier = async (req,res,next) =>{
-//     try {
-//         const suppliers = await Supplier.findAll()
-//         return res.json({
-//             data:suppliers
-//         })
-//     } catch (error) {
-//         return next(createError(500))
-//     }
-// }
+const getAllPurchaseOrder = async (req,res,next) =>{
+    try {
+        const puschaseOrder = await PurchaseOrder.findAll({
+          include: [
+            {
+              association: 'product',
+              attributes: ['product_name']
+            },
+            {
+              association: 'supplier',
+              attributes:{
+                include:['supplier_name']
+              }
+            }
+          ]
+        })
+        return res.json({
+            data:puschaseOrder
+        })
+    } catch (error) {
+        return next(createError(500))
+    }
+}
 
-// const updateSupplier = async (req,res,next) =>{
-//     try {
-//         const {id} = req.params
-//         console.log("ID:",id)
-//         const {
-//             supplier_name,
-//             contract,
-//             email,
-//             phone,
-//           } = req.body;
-//         const newSupplier = await Supplier.update(
-//             {
-//                 supplier_name,
-//                 contract,
-//                 email,
-//                 phone,
-//             },
-//             {
-//               where:{id}   
-//             }
-//         )
-//         return res.json({
-//             data: newSupplier
-//         })
-//     } catch (error) {
-//         return next(createError(500))
+const updatePurchaseOrder = async (req,res,next) =>{
+    try {
+        const {id} = req.params
+        console.log("ID:",id)
+        const {
+          product_id,
+          quantity,
+          unit_price,
+          total_price,
+          supplier_id,
+          note,
+          } = req.body;
+        const newPurchaseOrder = await PurchaseOrder.update(
+            {
+              product_id,
+              quantity,
+              unit_price,
+              total_price,
+              supplier_id,
+              note,
+            },
+            {
+              where:{id}   
+            }
+        )
+        return res.json({
+            data: newPurchaseOrder
+        })
+    } catch (error) {
+        return next(createError(500))
     
-//     }
-// }
+    }
+}
 
-// const delSupplierById = async (req,res,next) =>{
-//     try {
-//         const {id} = req.params
-//         await Supplier.destroy({
-//             where:{
-//                 id
-//             }
-//         })
-//         const newSuppliers = await Supplier.findAll()
-//         return res.json({
-//             data:newSuppliers
-//         })
+const delPurchaseOrderById = async (req,res,next) =>{
+    try {
+        const {id} = req.params
+        await PurchaseOrder.destroy({
+            where:{
+                id
+            }
+        })
+        const newPurchaseOrder = await PurchaseOrder.findAll()
+        return res.json({
+            data:newPurchaseOrder
+        })
 
-//     } catch (error) {
-//         return next(createError(500))
-//     }
-// }
+    } catch (error) {
+        return next(createError(500))
+    }
+}
 
 module.exports = {
-//   createSupplier,
-//   getAllSupplier,
-//   updateSupplier,
-//   delSupplierById,
+  createPurchaseOrder,
+  getAllPurchaseOrder,
+  updatePurchaseOrder,
+  delPurchaseOrderById,
 };

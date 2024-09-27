@@ -1,5 +1,5 @@
 const createError = require("http-errors");
-const Supplier = require("~/models/supplier");
+const {Supplier} = require("~/models");
 
 const createSupplier = async (req, res, next) => {
     try {
@@ -9,19 +9,20 @@ const createSupplier = async (req, res, next) => {
         email,
         phone,
       } = req.body;
-  
+      console.log("name:",email)
   
       const newSupplier = await Supplier.create({
         supplier_name,
         contract,
         email,
         phone,
-      });
+      })
   
       return res.json({
         data: newSupplier.toJSON(),
       });
     } catch (error) {
+      console.log("erro:",error)
       return next(createError(500));
     }
   };
@@ -32,6 +33,7 @@ const getAllSupplier = async (req,res,next) =>{
             data:suppliers
         })
     } catch (error) {
+     
         return next(createError(500))
     }
 }

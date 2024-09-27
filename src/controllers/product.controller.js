@@ -9,6 +9,7 @@ const createProduct = async (req, res, next) => {
         category_id,
         description,
         price,
+        unit_calc,
         inventory_quantity,
         warehouse_latest,
         quantity_warehouse_latest,
@@ -20,6 +21,7 @@ const createProduct = async (req, res, next) => {
         category_id,
         description,
         price,
+        unit_calc,
         inventory_quantity,
         warehouse_latest,
         quantity_warehouse_latest,
@@ -52,6 +54,20 @@ const getAllProduct = async (req,res,next) =>{
     }
 }
 
+const getProductById = async (req,res,next) =>{
+    try {
+        const {id} = req.params
+        console.log("ID:",id)
+       
+        const product = await Product.findByPk(id)
+        return res.json({
+            data: product
+        })
+    } catch (error) {
+        return next(createError(500))
+    
+    }
+}
 const updateProduct = async (req,res,next) =>{
     try {
         const {id} = req.params
@@ -61,6 +77,7 @@ const updateProduct = async (req,res,next) =>{
             category_id,
             description,
             price,
+            unit_calc,
             inventory_quantity,
             warehouse_latest,
             quantity_warehouse_latest,
@@ -72,6 +89,7 @@ const updateProduct = async (req,res,next) =>{
                 category_id,
                 description,
                 price,
+                unit_calc,
                 inventory_quantity,
                 warehouse_latest,
                 quantity_warehouse_latest,  
@@ -110,6 +128,7 @@ const delProductById = async (req,res,next) =>{
 module.exports = {
   createProduct,
   getAllProduct,
+  getProductById,
   updateProduct,
   delProductById,
 };

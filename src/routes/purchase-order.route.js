@@ -1,7 +1,7 @@
 const  router  = require("express").Router();
-// const supplierController = require("~/controllers/supplier.controller")
-// router.post('/',supplierController.createSupplier)
-// router.get('/',supplierController.getAllSupplier)
-// router.patch('/:id',supplierController.updateSupplier)
-// router.delete('/:id',supplierController.delSupplierById)
+const purchaseOrderController = require("~/controllers/purchase-order.controller")
+router.post('/',purchaseOrderController.createPurchaseOrder)
+router.get('/',purchaseOrderController.getAllPurchaseOrder)
+router.patch('/:id',purchaseOrderController.updatePurchaseOrder)
+router.delete('/:id',purchaseOrderController.delPurchaseOrderById)
 module.exports = router
