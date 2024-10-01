@@ -11,7 +11,10 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       PurchaseOrder.belongsTo(models.Supplier, { foreignKey: 'supplier_id', as: 'supplier' })
-
+      PurchaseOrder.hasMany(models.PurchaseOrderDetail, {
+        foreignKey: 'purchaseOrderId',
+        as: 'purchaseOrderDetails', 
+      });
     }
   }
   PurchaseOrder.init({

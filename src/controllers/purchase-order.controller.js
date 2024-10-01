@@ -51,6 +51,38 @@ const createPurchaseOrder = async (req, res, next) => {
       return next(createError(500));
     }
   };
+
+  const getPurchaseById = async (req,res,next) =>{
+    const {id} = req.params
+        console.log("ID:",id)
+    try {
+        const puschaseOrder = await PurchaseOrder.findByPk(id,{
+          include: [
+            {
+              association: 'purchaseOrderDetails',
+              include: [
+                {
+                  association: 'product'
+                }
+              ]
+            },
+            {
+              association: 'supplier',
+              attributes:{
+                include:['supplier_name']
+              }
+            }
+          ]
+          
+        })
+        return res.json({
+            data:puschaseOrder
+        })
+    } catch (error) {
+      console.log(error)
+        return next(createError(500))
+    }
+}
 const getAllPurchaseOrder = async (req,res,next) =>{
     try {
         const puschaseOrder = await PurchaseOrder.findAll({
@@ -129,4 +161,5 @@ module.exports = {
   getAllPurchaseOrder,
   updatePurchaseOrder,
   delPurchaseOrderById,
+  getPurchaseById
 };

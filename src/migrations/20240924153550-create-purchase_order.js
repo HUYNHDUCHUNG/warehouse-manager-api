@@ -13,7 +13,8 @@ module.exports = {
         type: Sequelize.STRING
       },
       dateImport:{
-        type: Sequelize.DATE
+        type: Sequelize.DATEONLY,
+        allowNull: false
       },
       total_price: {
         type: Sequelize.STRING
