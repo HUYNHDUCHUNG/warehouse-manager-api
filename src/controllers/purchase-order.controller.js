@@ -1,34 +1,51 @@
 const createError = require("http-errors");
-const {PurchaseOrder} = require("~/models");
+const {PurchaseOrder ,PurchaseOrderDetail} = require("~/models");
+const { generateMaPhieuNhap } = require("~/utils");
+
 
 const createPurchaseOrder = async (req, res, next) => {
     try {
       const {
-        product_id,
-        quantity,
-        unit_price,
-        total_price,
         supplier_id,
         note,
-
+        dateImport,
+        products
 
       } = req.body;
   
-      console.log("note:",note)
+      console.log("note:",products)
+       const codePurchaseOrder = generateMaPhieuNhap()
   
       const newPurchaseOrder = await PurchaseOrder.create({
-        product_id,
-        quantity,
-        unit_price,
-        total_price,
+        codePurchaseOrder,
         supplier_id,
         note,
+        dateImport,
       });
 
-  
-      return res.json({
-        data: newPurchaseOrder.toJSON(),
+       // Tạo PurchaseOrderDetail cho mỗi sản phẩm
+    const purchaseOrderDetails = await Promise.all(products.map(async (product) => {
+      return await PurchaseOrderDetail.create({
+        purchaseOrderId: newPurchaseOrder.id, // Sử dụng ID của PurchaseOrder làm khóa ngoại
+        productId: product.productId,
+        quantity: product.quantity,
+        unitPrice: product.unitPrice,
+        totalPrice: product.totalPrice
       });
+    }));
+
+    // Tính tổng giá trị đơn hàng
+    const totalOrderValue = purchaseOrderDetails.reduce((sum, detail) => sum + parseFloat(detail.totalPrice), 0);
+    console.log("Total Price:",totalOrderValue)
+    // Cập nhật tổng giá trị vào PurchaseOrder (nếu cần)
+    await newPurchaseOrder.update({ total_price: totalOrderValue });
+
+    return res.json({
+      data: {
+        purchaseOrder: newPurchaseOrder.toJSON(),
+        purchaseOrderDetails: purchaseOrderDetails.map(detail => detail.toJSON())
+      },
+    });
     } catch (error) {
       console.log(error)
       return next(createError(500));
@@ -38,10 +55,7 @@ const getAllPurchaseOrder = async (req,res,next) =>{
     try {
         const puschaseOrder = await PurchaseOrder.findAll({
           include: [
-            {
-              association: 'product',
-              attributes: ['product_name']
-            },
+            
             {
               association: 'supplier',
               attributes:{
