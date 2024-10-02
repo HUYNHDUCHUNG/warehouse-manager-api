@@ -1,5 +1,5 @@
 const createError = require("http-errors");
-const {PurchaseOrder ,PurchaseOrderDetail} = require("~/models");
+const {PurchaseOrder ,PurchaseOrderDetail,Product, sequelize, Sequelize} = require("~/models");
 const { generateMaPhieuNhap } = require("~/utils");
 
 
@@ -33,13 +33,37 @@ const createPurchaseOrder = async (req, res, next) => {
         totalPrice: product.totalPrice
       });
     }));
+    // Cập nhật số lượng tồn kho cho sản phẩm
+    const updateInventoryProduct = await Promise.all(products.map(async (product) => {
+      const currentProduct = await Product.findByPk(product.productId);
+      if (!currentProduct) {
+        throw new Error(`Product with id ${product.productId} not found`);
+      }
+      
+      const newQuantity = currentProduct.inventory_quantity + parseInt(product.quantity, 10);
+      
+      return await Product.update(
+        { inventory_quantity: newQuantity },
+        { where: { id: product.productId } }
+      );
+    }));
+
+    // Kiểm tra kết quả cập nhật
+    // const updateResults = updateInventoryProduct.flat();
+    // const allUpdatesSuccessful = updateResults.every(result => result[0] === 1);
+
+    // if (!allUpdatesSuccessful) {
+    //   throw new Error('Failed to update all product quantities');
+    // }
+
+    
 
     // Tính tổng giá trị đơn hàng
     const totalOrderValue = purchaseOrderDetails.reduce((sum, detail) => sum + parseFloat(detail.totalPrice), 0);
     console.log("Total Price:",totalOrderValue)
     // Cập nhật tổng giá trị vào PurchaseOrder (nếu cần)
     await newPurchaseOrder.update({ total_price: totalOrderValue });
-
+    console.log('All product quantities updated successfully');
     return res.json({
       data: {
         purchaseOrder: newPurchaseOrder.toJSON(),
@@ -138,23 +162,66 @@ const updatePurchaseOrder = async (req,res,next) =>{
     }
 }
 
-const delPurchaseOrderById = async (req,res,next) =>{
-    try {
-        const {id} = req.params
-        await PurchaseOrder.destroy({
-            where:{
-                id
-            }
-        })
-        const newPurchaseOrder = await PurchaseOrder.findAll()
-        return res.json({
-            data:newPurchaseOrder
-        })
+const delPurchaseOrderById = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
 
-    } catch (error) {
-        return next(createError(500))
-    }
-}
+    // Lấy thông tin chi tiết của purchase order trước khi xóa
+    const purchaseOrderDetails = await PurchaseOrderDetail.findAll({
+      where: { purchaseOrderId: id },
+      transaction
+    });
+
+    // Cập nhật lại số lượng sản phẩm trong kho
+    await Promise.all(purchaseOrderDetails.map(async (detail) => {
+      const product = await Product.findByPk(detail.productId, { transaction });
+      if (!product) {
+        throw new Error(`Product with id ${detail.productId} not found`);
+      }
+      
+      const updatedQuantity = product.inventory_quantity - parseInt(detail.quantity, 10);
+      
+      await Product.update(
+        { inventory_quantity: updatedQuantity },
+        { 
+          where: { id: detail.productId },
+          transaction 
+        }
+      );
+    }));
+
+    // Xóa tất cả purchase order details
+    await PurchaseOrderDetail.destroy({
+      where: { purchaseOrderId: id },
+      transaction
+    });
+
+    // Xóa purchase order
+    await PurchaseOrder.destroy({
+      where: { id },
+      transaction
+    });
+
+    // Commit transaction nếu mọi thứ thành công
+    await transaction.commit();
+
+    // Lấy danh sách purchase orders mới
+    const newPurchaseOrders = await PurchaseOrder.findAll();
+
+    return res.json({
+      message: "Purchase order deleted successfully and inventory updated",
+      data: newPurchaseOrders
+    });
+
+  } catch (error) {
+    // Rollback transaction nếu có lỗi
+    await transaction.rollback();
+    console.error("Error in delPurchaseOrderById:", error);
+    return next(createError(500, "An error occurred while deleting the purchase order"));
+  }
+};
 
 module.exports = {
   createPurchaseOrder,
