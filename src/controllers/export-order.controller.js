@@ -1,6 +1,6 @@
 const createError = require("http-errors");
 const {ExportOrder ,ExportOrderDetail,Product, sequelize} = require("~/models");
-const { generateMaPhieuNhap } = require("~/utils");
+const { generateMaPhieu } = require("~/utils");
 
 
 const createExportOrder = async (req, res, next) => {
@@ -15,13 +15,14 @@ const createExportOrder = async (req, res, next) => {
       } = req.body;
   
       console.log("note:",products)
-       const codeExportOrder = generateMaPhieuNhap()
+       const codeExportOrder = generateMaPhieu('PX')
   
       const newExportOrder = await ExportOrder.create({
         codeExportOrder,
         customerId,
         note,
         dateExport,
+        transaction
       });
 
        // Tạo ExportOrderDetail cho mỗi sản phẩm
@@ -31,23 +32,10 @@ const createExportOrder = async (req, res, next) => {
         productId: product.productId,
         quantity: product.quantity,
         unitPrice: product.unitPrice,
-        totalPrice: product.totalPrice
+        totalPrice: product.totalPrice,
+        transaction
       });
     }));
-    // Cập nhật số lượng tồn kho cho sản phẩm
-    // const updateInventoryProduct = await Promise.all(products.map(async (product) => {
-    //   const currentProduct = await Product.findByPk(product.productId);
-    //   if (!currentProduct) {
-    //     throw new Error(`Product with id ${product.productId} not found`);
-    //   }
-      
-    //   const newQuantity = currentProduct.inventory_quantity + parseInt(product.quantity, 10);
-      
-    //   return await Product.update(
-    //     { inventory_quantity: newQuantity },
-    //     { where: { id: product.productId } }
-    //   );
-    // }));
 
 
     
@@ -56,13 +44,13 @@ const createExportOrder = async (req, res, next) => {
     const totalOrderValue = exportOrderDetails.reduce((sum, detail) => sum + parseFloat(detail.totalPrice), 0);
     console.log("Total Price:",totalOrderValue)
     // Cập nhật tổng giá trị vào ExportOrder (nếu cần)
-    await newExportOrder.update({ total_price: totalOrderValue });
+    await newExportOrder.update({ total_price: totalOrderValue ,transaction});
     await transaction.commit();
     console.log('All product quantities updated successfully');
     return res.json({
       data: {
         ExportOrder: newExportOrder.toJSON(),
-        ExportOrderDetails: ExportOrderDetails.map(detail => detail.toJSON())
+        // ExportOrderDetails: ExportOrderDetails.map(detail => detail.toJSON())
       },
     });
     } catch (error) {
@@ -103,24 +91,50 @@ const createExportOrder = async (req, res, next) => {
     }
 }
 const getAllExportOrder = async (req,res,next) =>{
-    try {
-        const puschaseOrder = await ExportOrder.findAll({
-          include: [
-            
-            {
-              association: 'customer',
-              attributes:{
-                include:['fullName']
-              }
-            }
-          ]
-        })
-        return res.json({
-            data:puschaseOrder
-        })
-    } catch (error) {
-        return next(createError(500))
-    }
+  try {
+    const exportOrders = await ExportOrder.findAll({
+      include: [
+        {
+          association: 'customer',
+          attributes: ['fullName']
+        },
+        {
+          association: 'exportOrderDetails',
+          include: [{
+            association: 'product',
+            attributes: ['id', 'product_name', 'inventory_quantity']
+          }]
+        }
+      ]
+    });
+
+    const processedExportOrders = exportOrders.map(order => {
+      const processedOrder = order.toJSON();
+      
+      processedOrder.exportOrderDetails = processedOrder.exportOrderDetails.map(detail => {
+        const requestedQuantity = parseInt(detail.quantity, 10);
+        const availableQuantity = detail.product.inventory_quantity;
+        
+        return {
+          ...detail,
+          isAvailable: availableQuantity >= requestedQuantity,
+          availableQuantity,
+          shortageQuantity: Math.max(0, requestedQuantity - availableQuantity)
+        };
+      });
+
+      processedOrder.isFullyAvailable = processedOrder.exportOrderDetails.every(detail => detail.isAvailable);
+      
+      return processedOrder;
+    });
+
+    return res.json({
+      data: processedExportOrders
+    });
+  } catch (error) {
+    console.error("Error in getAllExportOrder:", error);
+    return next(createError(500, "An error occurred while fetching export orders"));
+  }
 }
 
 const updateExportOrder = async (req,res,next) =>{
@@ -164,28 +178,28 @@ const delExportOrderById = async (req, res, next) => {
     const { id } = req.params;
 
     // Lấy thông tin chi tiết của Export order trước khi xóa
-    const ExportOrderDetails = await ExportOrderDetail.findAll({
+    const exportOrderDetails = await ExportOrderDetail.findAll({
       where: { ExportOrderId: id },
       transaction
     });
 
     // Cập nhật lại số lượng sản phẩm trong kho
-    await Promise.all(ExportOrderDetails.map(async (detail) => {
-      const product = await Product.findByPk(detail.productId, { transaction });
-      if (!product) {
-        throw new Error(`Product with id ${detail.productId} not found`);
-      }
+    // await Promise.all(exportOrderDetails.map(async (detail) => {
+    //   const product = await Product.findByPk(detail.productId, { transaction });
+    //   if (!product) {
+    //     throw new Error(`Product with id ${detail.productId} not found`);
+    //   }
       
-      const updatedQuantity = product.inventory_quantity - parseInt(detail.quantity, 10);
+    //   const updatedQuantity = product.inventory_quantity - parseInt(detail.quantity, 10);
       
-      await Product.update(
-        { inventory_quantity: updatedQuantity },
-        { 
-          where: { id: detail.productId },
-          transaction 
-        }
-      );
-    }));
+    //   await Product.update(
+    //     { inventory_quantity: updatedQuantity },
+    //     { 
+    //       where: { id: detail.productId },
+    //       transaction 
+    //     }
+    //   );
+    // }));
 
     // Xóa tất cả Export order details
     await ExportOrderDetail.destroy({

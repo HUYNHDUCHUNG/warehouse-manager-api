@@ -1,6 +1,6 @@
 const createError = require("http-errors");
 const {PurchaseOrder ,PurchaseOrderDetail,Product, sequelize, Sequelize} = require("~/models");
-const { generateMaPhieuNhap } = require("~/utils");
+const { generateMaPhieu } = require("~/utils");
 
 
 const createPurchaseOrder = async (req, res, next) => {
@@ -14,7 +14,7 @@ const createPurchaseOrder = async (req, res, next) => {
       } = req.body;
   
       console.log("note:",products)
-       const codePurchaseOrder = generateMaPhieuNhap()
+       const codePurchaseOrder = generateMaPhieu('PN')
   
       const newPurchaseOrder = await PurchaseOrder.create({
         codePurchaseOrder,
