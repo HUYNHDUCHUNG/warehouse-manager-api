@@ -86,7 +86,10 @@ const createPurchaseOrder = async (req, res, next) => {
               association: 'purchaseOrderDetails',
               include: [
                 {
-                  association: 'product'
+                  association: 'product',
+                  attributes:{
+                    include:['product_name']
+                  }
                 }
               ]
             },

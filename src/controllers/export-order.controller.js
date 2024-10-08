@@ -59,36 +59,81 @@ const createExportOrder = async (req, res, next) => {
     }
   };
 
-  const getExportById = async (req,res,next) =>{
-    const {id} = req.params
-        console.log("ID:",id)
-    try {
-        const puschaseOrder = await ExportOrder.findByPk(id,{
-          include: [
-            {
-              association: 'exportOrderDetails',
-              include: [
-                {
-                  association: 'product'
-                }
-              ]
-            },
-            {
-              association: 'customer',
-              attributes:{
-                include:['fullName']
-              }
+const getExportById = async (req, res, next) => {
+        const { id } = req.params
+        console.log("ID:", id)
+        try {
+            const exportOrder = await ExportOrder.findByPk(id, {
+                include: [
+                    {
+                        association: 'exportOrderDetails',
+                        include: [
+                            {
+                                association: 'product',
+                                attributes: ['id', 'product_name', 'inventory_quantity', 'price']
+                            }
+                        ]
+                    },
+                    {
+                        association: 'customer',
+                        attributes: ['id', 'fullName', 'contract', 'email', 'phone']
+                    },
+                ]
+            });
+    
+            if (!exportOrder) {
+                return next(createError(404, "Export order not found"));
             }
-          ]
-          
-        })
-        return res.json({
-            data:puschaseOrder
-        })
-    } catch (error) {
-      console.log(error)
-        return next(createError(500))
-    }
+    
+            const processedExportOrder = exportOrder.toJSON();
+            
+            processedExportOrder.exportOrderDetails = processedExportOrder.exportOrderDetails.map(detail => {
+                const requestedQuantity = parseInt(detail.quantity, 10);
+                const availableQuantity = detail.product.inventory_quantity;
+                
+                return {
+                    id: detail.id,
+                    exportOrderId: detail.exportOrderId.toString(),
+                    productId: detail.productId.toString(),
+                    productName: detail.product.product_name,
+                    quantity: detail.quantity.toString(),
+                    // unitPrice: detail.product.price.toString(), 
+                    unitPrice: detail.unitPrice, // Giả sử unitPrice giống với giá sản phẩm
+                    totalPrice: (parseInt(detail.quantity) * parseFloat(detail.unitPrice)).toString(),
+                    isAvailable: availableQuantity >= requestedQuantity,
+                    availableQuantity: availableQuantity.toString(),
+                    shortageQuantity: Math.max(0, requestedQuantity - availableQuantity).toString()
+                };
+            });
+    
+            const formattedExportOrder = {
+                id: processedExportOrder.id,
+                codeExportOrder: processedExportOrder.codeExportOrder,
+                total_price: processedExportOrder.total_price.toString(),
+                dateExport: processedExportOrder.dateExport,
+                customerId: processedExportOrder.customerId.toString(),
+                note: processedExportOrder.note || "",
+                exportOrderDetails: processedExportOrder.exportOrderDetails,
+                isFullyAvailable: processedExportOrder.exportOrderDetails.every(detail => detail.isAvailable),
+                customer: {
+                    id: processedExportOrder.customer.id,
+                    fullName: processedExportOrder.customer.fullName,
+                    contract: processedExportOrder.customer.contract,
+                    email: processedExportOrder.customer.email,
+                    phone: processedExportOrder.customer.phone
+                },
+                status: processedExportOrder.status === null ? false : Boolean(processedExportOrder.status),
+                createdAt: new Date(processedExportOrder.createdAt),
+                updatedAt: new Date(processedExportOrder.updatedAt)
+            };
+    
+            return res.json({
+                data: formattedExportOrder
+            });
+        } catch (error) {
+            console.error("Error in getExportById:", error);
+            return next(createError(500, "An error occurred while fetching the export order"));
+        }
 }
 const getAllExportOrder = async (req,res,next) =>{
   try {
