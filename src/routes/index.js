@@ -5,8 +5,10 @@ const supplierRouter = require('./supplier.route')
 const customerRouter = require('./customer.route')
 const purchaseOrderRouter = require('./purchase-order.route')
 const exportOrderRouter = require('./export-order.route')
+const authRouter = require('./auth.route')
 
 
+router.use('/auth',authRouter)
 router.use('/category',categoryRouter)
 router.use('/product',productRouter)
 router.use('/supplier',supplierRouter)
