@@ -25,6 +25,9 @@ module.exports = {
       note: {
         type: Sequelize.STRING
       },
+      userId: {
+        type: Sequelize.STRING
+      },
       
       createdAt: {
         allowNull: false,
