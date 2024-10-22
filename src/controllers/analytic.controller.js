@@ -1,10 +1,10 @@
 const createError = require('http-errors');
 const { Op } = require('sequelize');
-const {ExportOrder,PurchaseOrder, sequelize} = require('~/models');
+const {ExportOrder,PurchaseOrder, Customer, sequelize} = require('~/models');
 
 const getTotalIncomeCurrentMonth = async (req, res) => {
   try {
-    const now = new Date();
+    const now = new Date(); 
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
 
@@ -22,7 +22,7 @@ const getTotalIncomeCurrentMonth = async (req, res) => {
         [Op.and]: [
           sequelize.where(sequelize.fn('YEAR', sequelize.col('dateExport')), currentYear),
           sequelize.where(sequelize.fn('MONTH', sequelize.col('dateExport')), currentMonth + 1),
-          // { statusOrder: true }
+          { status: true }
         ]
       }
     });
@@ -47,7 +47,7 @@ const getTotalIncomeCurrentMonth = async (req, res) => {
             sequelize.fn('MONTH', sequelize.col('dateExport')),
             currentMonth === 0 ? 12 : currentMonth
           ),
-          // { statusOrder: true }
+          { status: true }
         ]
       }
     });
@@ -74,8 +74,8 @@ const getTotalIncomeCurrentMonth = async (req, res) => {
     };
 
     return res.status(200).json({
-      success: true,
-      data: {
+      data:{
+        success: true,
         current_month: {
           year: currentYear,
           month: currentMonth + 1,
@@ -177,8 +177,8 @@ const getMonthlyOrderStats = async (req, res) => {
     };
 
     return res.status(200).json({
-      success: true,
       data: {
+      success: true,
         current_month: {
           year: currentYear,
           month: currentMonth,
@@ -219,7 +219,6 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
     const currentMonth = now.getMonth() + 1;
     const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
     const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
     // Lấy thống kê tháng hiện tại
     const currentMonthStats = await PurchaseOrder.findOne({
       attributes: [
@@ -246,6 +245,12 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
         sequelize.where(sequelize.fn('YEAR', sequelize.col('dateImport')), currentYear)
       )
     });
+
+ 
+
+
+
+
 
     // Lấy thống kê tháng trước
     const previousMonthStats = await PurchaseOrder.findOne({
@@ -352,10 +357,124 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
   }
 };
 
+const getCustomerStats = async (req, res) => {
+  try {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+    // Lấy tổng số khách hàng tháng hiện tại
+    const currentMonthCustomers = await Customer.count({
+      where: sequelize.and(
+        sequelize.where(sequelize.fn('MONTH', sequelize.col('createdAt')), currentMonth),
+        sequelize.where(sequelize.fn('YEAR', sequelize.col('createdAt')), currentYear)
+      )
+    });
+
+    // Lấy tổng số khách hàng tháng trước
+    const previousMonthCustomers = await Customer.count({
+      where: sequelize.and(
+        sequelize.where(sequelize.fn('MONTH', sequelize.col('createdAt')), previousMonth),
+        sequelize.where(sequelize.fn('YEAR', sequelize.col('createdAt')), previousYear)
+      )
+    });
+
+    // Lấy tổng số khách hàng
+    const totalCustomers = await Customer.count();
+
+    // Thống kê theo loại liên hệ
+    const contactStats = await Customer.findAll({
+      attributes: [
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+        [sequelize.literal(`
+          CASE 
+            WHEN phone IS NOT NULL AND email IS NOT NULL THEN 'both'
+            WHEN phone IS NOT NULL THEN 'phone'
+            WHEN email IS NOT NULL THEN 'email'
+            ELSE 'none'
+          END
+        `), 'contact_type']
+      ],
+      group: [sequelize.literal(`
+        CASE 
+          WHEN phone IS NOT NULL AND email IS NOT NULL THEN 'both'
+          WHEN phone IS NOT NULL THEN 'phone'
+          WHEN email IS NOT NULL THEN 'email'
+          ELSE 'none'
+        END
+      `)]
+    });
+
+    // Tính tỷ lệ tăng trưởng
+    let growthRate = 0;
+    if (previousMonthCustomers > 0) {
+      growthRate = ((currentMonthCustomers - previousMonthCustomers) / previousMonthCustomers * 100).toFixed(2);
+    } else if (currentMonthCustomers > 0) {
+      growthRate = 100;
+    }
+
+    // Format số với dấu phẩy ngăn cách hàng nghìn
+    const formatNumber = (num) => {
+      return new Intl.NumberFormat('vi-VN').format(num);
+    };
+
+    // Chuyển đổi contactStats thành object dễ sử dụng
+    const contactTypeCounts = contactStats.reduce((acc, stat) => {
+      acc[stat.dataValues.contact_type] = parseInt(stat.dataValues.count);
+      return acc;
+    }, {});
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        current_month: {
+          year: currentYear,
+          month: currentMonth,
+          new_customers: currentMonthCustomers,
+          formatted_new_customers: formatNumber(currentMonthCustomers)
+        },
+        previous_month: {
+          year: previousYear,
+          month: previousMonth,
+          new_customers: previousMonthCustomers,
+          formatted_new_customers: formatNumber(previousMonthCustomers)
+        },
+        total_customers: totalCustomers,
+        formatted_total: formatNumber(totalCustomers),
+        growth_rate: parseFloat(growthRate),
+        growth_direction: growthRate > 0 ? 'increase' : growthRate < 0 ? 'decrease' : 'stable',
+        contact_statistics: {
+          both_contacts: contactTypeCounts.both || 0,
+          phone_only: contactTypeCounts.phone || 0,
+          email_only: contactTypeCounts.email || 0,
+          no_contacts: contactTypeCounts.none || 0
+        },
+        contact_coverage: {
+          percentage: totalCustomers > 0 
+            ? (((contactTypeCounts.both || 0) + (contactTypeCounts.phone || 0) + (contactTypeCounts.email || 0)) / totalCustomers * 100).toFixed(2)
+            : 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error calculating customer statistics:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
 
 
 module.exports ={
     getTotalIncomeCurrentMonth,
     getMonthlyOrderStats,
-    getMonthlyPurchaseOrderStats
+    getMonthlyPurchaseOrderStats,
+    getCustomerStats
 }

@@ -22,6 +22,7 @@ const createExportOrder = async (req, res, next) => {
         customerId,
         note,
         dateExport,
+        status: false,
         transaction
       });
 
@@ -33,6 +34,7 @@ const createExportOrder = async (req, res, next) => {
         quantity: product.quantity,
         unitPrice: product.unitPrice,
         totalPrice: product.totalPrice,
+        
         transaction
       });
     }));
@@ -182,39 +184,71 @@ const getAllExportOrder = async (req,res,next) =>{
   }
 }
 
-const updateExportOrder = async (req,res,next) =>{
-    try {
-        const {id} = req.params
-        console.log("ID:",id)
-        const {
-          product_id,
-          quantity,
-          unit_price,
-          total_price,
-          supplier_id,
-          note,
-          } = req.body;
-        const newExportOrder = await ExportOrder.update(
-            {
-              product_id,
-              quantity,
-              unit_price,
-              total_price,
-              supplier_id,
-              note,
-            },
-            {
-              where:{id}   
-            }
-        )
-        return res.json({
-            data: newExportOrder
-        })
-    } catch (error) {
-        return next(createError(500))
-    
+const updateOrderStatus = async (req, res) => {
+  const { id } = req.params;  // ID đơn hàng từ URL
+  try {
+    // Tìm đơn hàng theo orderId
+    const order = await ExportOrder.findOne({
+      where: { id },
+      include: [
+        {
+          model: ExportOrderDetail,
+          as: 'exportOrderDetails'
+        }
+      ]
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
     }
-}
+
+    // Kiểm tra xem đơn hàng đã được xác nhận chưa (tránh xác nhận nhiều lần)
+    if (order.status == 1) {
+      return res.status(400).json({ message: 'Order is already confirmed' });
+    }
+
+    // Bắt đầu transaction
+    const transaction = await sequelize.transaction();
+
+    try {
+      // Trừ số lượng sản phẩm tồn kho dựa trên chi tiết đơn hàng
+      for (let detail of order.exportOrderDetails) {
+        const product = await Product.findOne({ where: { id: detail.productId } });
+
+        if (!product) {
+          throw new Error(`Product with ID ${detail.productId} not found`);
+        }
+
+        const updatedQuantity = product.inventory_quantity - parseInt(detail.quantity);
+
+        if (updatedQuantity < 0) {
+          throw new Error(`Not enough inventory for product ${product.product_name}`);
+        }
+
+        // Cập nhật số lượng tồn kho
+        await product.update({ inventory_quantity: updatedQuantity }, { transaction });
+      }
+
+      // Cập nhật trạng thái đơn hàng thành đã xác nhận (status = true)
+      await order.update({ status: 1 }, { transaction });
+
+      // Commit transaction
+      await transaction.commit();
+
+      return res.json({ message: 'Order confirmed and inventory updated' });
+
+    } catch (error) {
+      // Rollback transaction nếu có lỗi
+      await transaction.rollback();
+      console.error('Error confirming order:', error);
+      return res.status(500).json({ message: error.message });
+    }
+
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
 
 const delExportOrderById = async (req, res, next) => {
   const transaction = await sequelize.transaction();
@@ -280,7 +314,7 @@ const delExportOrderById = async (req, res, next) => {
 module.exports = {
   createExportOrder,
   getAllExportOrder,
-  updateExportOrder,
+  updateOrderStatus,
   delExportOrderById,
   getExportById
 };
