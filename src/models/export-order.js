@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       ExportOrder.belongsTo(models.Customer, { foreignKey: 'customerId', as: 'customer' })
+      ExportOrder.belongsTo(models.User, { foreignKey: 'userId', as: 'user' })
       ExportOrder.hasMany(models.ExportOrderDetail, {
         foreignKey: 'exportOrderId',
         as: 'exportOrderDetails', 
@@ -23,7 +24,8 @@ module.exports = (sequelize, DataTypes) => {
     total_price: DataTypes.STRING,
     customerId: DataTypes.STRING,
     note: DataTypes.STRING,
-    status: DataTypes.BOOLEAN
+    status: DataTypes.BOOLEAN,
+    userId: DataTypes.STRING,
   }, {
     sequelize,
     modelName: 'ExportOrder',

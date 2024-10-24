@@ -219,6 +219,7 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
     const currentMonth = now.getMonth() + 1;
     const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
     const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
     // Lấy thống kê tháng hiện tại
     const currentMonthStats = await PurchaseOrder.findOne({
       attributes: [
@@ -234,10 +235,6 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
             sequelize.literal('CASE WHEN total_price = 0 OR total_price IS NULL THEN 1 ELSE 0 END')
           ),
           'pending_orders'
-        ],
-        [
-          sequelize.fn('SUM', sequelize.col('total_price')),
-          'total_amount'
         ]
       ],
       where: sequelize.and(
@@ -246,20 +243,10 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
       )
     });
 
- 
-
-
-
-
-
     // Lấy thống kê tháng trước
     const previousMonthStats = await PurchaseOrder.findOne({
       attributes: [
-        [sequelize.fn('COUNT', sequelize.col('id')), 'total_orders'],
-        [
-          sequelize.fn('SUM', sequelize.col('total_price')),
-          'total_amount'
-        ]
+        [sequelize.fn('COUNT', sequelize.col('id')), 'total_orders']
       ],
       where: sequelize.and(
         sequelize.where(sequelize.fn('MONTH', sequelize.col('dateImport')), previousMonth),
@@ -271,47 +258,40 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
     const currentStats = currentMonthStats?.get({ plain: true }) || {
       total_orders: 0,
       completed_orders: 0,
-      pending_orders: 0,
-      total_amount: 0
+      pending_orders: 0
     };
     
     const previousStats = previousMonthStats?.get({ plain: true }) || {
-      total_orders: 0,
-      total_amount: 0
+      total_orders: 0
     };
 
     // Convert từ string sang number
     const currentTotal = parseInt(currentStats.total_orders || 0);
     const completedOrders = parseInt(currentStats.completed_orders || 0);
     const pendingOrders = parseInt(currentStats.pending_orders || 0);
-    const currentAmount = parseFloat(currentStats.total_amount || 0);
     const previousTotal = parseInt(previousStats.total_orders || 0);
-    const previousAmount = parseFloat(previousStats.total_amount || 0);
 
-    // Tính tỷ lệ tăng trưởng đơn hàng
-    let orderGrowthRate = 0;
+    // Tính tỷ lệ tăng trưởng và hướng tăng trưởng
+    let growthRate = 0;
     if (previousTotal > 0) {
-      orderGrowthRate = ((currentTotal - previousTotal) / previousTotal * 100).toFixed(2);
+      growthRate = ((currentTotal - previousTotal) / previousTotal * 100);
     } else if (currentTotal > 0) {
-      orderGrowthRate = 100;
+      growthRate = 100;
     }
 
-    // Tính tỷ lệ tăng trưởng giá trị
-    let amountGrowthRate = 0;
-    if (previousAmount > 0) {
-      amountGrowthRate = ((currentAmount - previousAmount) / previousAmount * 100).toFixed(2);
-    } else if (currentAmount > 0) {
-      amountGrowthRate = 100;
-    }
-
-    // Format số với dấu phẩy ngăn cách hàng nghìn
+    // Format số
     const formatNumber = (num) => {
-      return new Intl.NumberFormat('vi-VN').format(num);
+      return num.toString();
     };
 
+    // Tính completion rate
+    const completionRate = currentTotal > 0 
+      ? ((completedOrders / currentTotal) * 100).toFixed(2)
+      : "0.00";
+
     return res.status(200).json({
-      success: true,
       data: {
+        success: true,
         current_month: {
           year: currentYear,
           month: currentMonth,
@@ -319,30 +299,16 @@ const getMonthlyPurchaseOrderStats = async (req, res) => {
           formatted_total: formatNumber(currentTotal),
           completed_orders: completedOrders,
           pending_orders: pendingOrders,
-          total_amount: currentAmount,
-          formatted_amount: formatNumber(currentAmount),
-          completion_rate: currentTotal > 0 
-            ? ((completedOrders / currentTotal) * 100).toFixed(2) 
-            : 0
+          completion_rate: completionRate
         },
         previous_month: {
           year: previousYear,
           month: previousMonth,
           total_orders: previousTotal,
-          formatted_total: formatNumber(previousTotal),
-          total_amount: previousAmount,
-          formatted_amount: formatNumber(previousAmount)
+          formatted_total: formatNumber(previousTotal)
         },
-        growth_rates: {
-          orders: {
-            value: parseFloat(orderGrowthRate),
-            direction: orderGrowthRate > 0 ? 'increase' : orderGrowthRate < 0 ? 'decrease' : 'stable'
-          },
-          amount: {
-            value: parseFloat(amountGrowthRate),
-            direction: amountGrowthRate > 0 ? 'increase' : amountGrowthRate < 0 ? 'decrease' : 'stable'
-          }
-        }
+        growth_rate: growthRate,
+        growth_direction: growthRate > 0 ? 'increase' : growthRate < 0 ? 'decrease' : 'stable'
       }
     });
 
@@ -427,8 +393,8 @@ const getCustomerStats = async (req, res) => {
     }, {});
 
     return res.status(200).json({
-      success: true,
       data: {
+      success: true,
         current_month: {
           year: currentYear,
           month: currentMonth,
@@ -445,17 +411,17 @@ const getCustomerStats = async (req, res) => {
         formatted_total: formatNumber(totalCustomers),
         growth_rate: parseFloat(growthRate),
         growth_direction: growthRate > 0 ? 'increase' : growthRate < 0 ? 'decrease' : 'stable',
-        contact_statistics: {
-          both_contacts: contactTypeCounts.both || 0,
-          phone_only: contactTypeCounts.phone || 0,
-          email_only: contactTypeCounts.email || 0,
-          no_contacts: contactTypeCounts.none || 0
-        },
-        contact_coverage: {
-          percentage: totalCustomers > 0 
-            ? (((contactTypeCounts.both || 0) + (contactTypeCounts.phone || 0) + (contactTypeCounts.email || 0)) / totalCustomers * 100).toFixed(2)
-            : 0
-        }
+        // contact_statistics: {
+        //   both_contacts: contactTypeCounts.both || 0,
+        //   phone_only: contactTypeCounts.phone || 0,
+        //   email_only: contactTypeCounts.email || 0,
+        //   no_contacts: contactTypeCounts.none || 0
+        // },
+        // contact_coverage: {
+        //   percentage: totalCustomers > 0 
+        //     ? (((contactTypeCounts.both || 0) + (contactTypeCounts.phone || 0) + (contactTypeCounts.email || 0)) / totalCustomers * 100).toFixed(2)
+        //     : 0
+        // }
       }
     });
 
@@ -471,10 +437,183 @@ const getCustomerStats = async (req, res) => {
 };
 
 
+const getTopExportProducts = async (req, res) => {
+  try {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    const topProducts = await PurchaseOrderDetail.findAll({
+      attributes: [
+        'productId',
+        [sequelize.fn('SUM', sequelize.cast(sequelize.col('quantity'), 'INTEGER')), 'total_quantity'],
+        [sequelize.fn('COUNT', sequelize.col('purchaseOrderId')), 'order_count'],
+        [sequelize.fn('SUM', 
+          sequelize.cast(sequelize.col('totalPrice'), 'DECIMAL')
+        ), 'total_amount']
+      ],
+      include: [
+        {
+          model: PurchaseOrder,
+          as: 'purchaseOrder',
+          attributes: [],
+          where: sequelize.and(
+            sequelize.where(sequelize.fn('MONTH', sequelize.col('dateImport')), currentMonth),
+            sequelize.where(sequelize.fn('YEAR', sequelize.col('dateImport')), currentYear)
+          )
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['name', 'stock', 'icon'] // Giả sử Product model có các trường này
+        }
+      ],
+      group: ['productId', 'product.id'], // Thêm product.id vào group by để tránh lỗi
+      order: [[sequelize.fn('SUM', sequelize.cast(sequelize.col('quantity'), 'INTEGER')), 'DESC']],
+      limit: 5
+    });
+
+    // Format response data
+    const formattedData = topProducts.map((item, index) => {
+      const plainItem = item.get({ plain: true });
+      return {
+        id: index + 1, // STT
+        product: {
+          name: plainItem.product.name,
+          icon: plainItem.product.icon || 'Package' // Default icon nếu không có
+        },
+        quantity: parseInt(plainItem.total_quantity),
+        order_count: parseInt(plainItem.order_count),
+        stock: plainItem.product.stock || 0,
+        total_amount: parseFloat(plainItem.total_amount),
+        formatted_total: new Intl.NumberFormat('vi-VN', {
+          style: 'currency',
+          currency: 'VND'
+        }).format(plainItem.total_amount)
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: formattedData
+    });
+
+  } catch (error) {
+    console.error('Error getting top export products:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+
+const getTopEmployees = async (req, res) => {
+  try {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    const topEmployees = await User.findAll({
+      attributes: [
+        'id',
+        'firstName',
+        'lastName',
+        [sequelize.fn('COUNT', sequelize.col('exportOrder.id')), 'order_count'],
+        [
+          sequelize.fn('SUM', 
+            sequelize.cast(sequelize.col('exportOrder.total_price'), 'DECIMAL')
+          ),
+          'total_amount'
+        ]
+      ],
+      include: [{
+        model: ExportOrder,
+        as: 'exportOrder',
+        attributes: [],
+        where: sequelize.and(
+          sequelize.where(
+            sequelize.fn('MONTH', sequelize.fn('STR_TO_DATE', sequelize.col('dateExport'), '%Y-%m-%d')), 
+            currentMonth
+          ),
+          sequelize.where(
+            sequelize.fn('YEAR', sequelize.fn('STR_TO_DATE', sequelize.col('dateExport'), '%Y-%m-%d')), 
+            currentYear
+          ),
+          {
+            status: true // Chỉ tính các đơn hàng đã hoàn thành
+          }
+        ),
+        required: true
+      }],
+      group: ['User.id'],
+      order: [[sequelize.fn('COUNT', sequelize.col('exportOrder.id')), 'DESC']],
+      limit: 4 // Lấy top 4 nhân viên
+    });
+
+    // Format response data
+    const formattedData = topEmployees.map((employee, index) => {
+      const plainEmployee = employee.get({ plain: true });
+      
+      // Format tổng thu nhập
+      const totalAmount = parseFloat(plainEmployee.total_amount || 0);
+      const formattedAmount = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+      }).format(totalAmount);
+
+      return {
+        id: index + 1, // STT
+        employee: {
+          name: `${plainEmployee.firstName} ${plainEmployee.lastName}`.trim(),
+          department: employee.role || 'Staff' // Phòng ban/vai trò của nhân viên
+        },
+        order_count: parseInt(plainEmployee.order_count || 0),
+        total_amount: totalAmount,
+        formatted_amount: formattedAmount
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        current_month: {
+          year: currentYear,
+          month: currentMonth
+        },
+        employees: formattedData
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting top employees:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+// Format date helper function (nếu cần)
+// const formatDate = (dateStr) => {
+//   try {
+//     const date = new Date(dateStr);
+//     return date.toISOString().split('T')[0];
+//   } catch (error) {
+//     return dateStr;
+//   }
+// };
+
 
 module.exports ={
     getTotalIncomeCurrentMonth,
     getMonthlyOrderStats,
     getMonthlyPurchaseOrderStats,
-    getCustomerStats
+    getCustomerStats,
+    getTopExportProducts,
+    getTopEmployees
 }
