@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Product,Category, PurchaseOrder, PurchaseOrderDetail, ExportOrder, ExportOrderDetail } = require('~/models');
+const { Product,Category,User,sequelize, PurchaseOrder, PurchaseOrderDetail, ExportOrder, ExportOrderDetail } = require('~/models');
 
 const getInventoryReport = async (req, res) => {
     try {
@@ -230,7 +230,182 @@ const validateDateRange = (req, res, next) => {
   next();
 };
 
+
+// Helper function để lấy điều kiện thời gian
+const getDateCondition = (timeRange) => {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  
+  switch(timeRange) {
+    case 'thisMonth':
+      return {
+        dateExport: {
+          [Op.gte]: startOfMonth.toISOString(),
+          [Op.lte]: now.toISOString()
+        }
+      };
+    case 'lastMonth':
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return {
+        dateExport: {
+          [Op.gte]: startOfLastMonth.toISOString(),
+          [Op.lte]: endOfLastMonth.toISOString()
+        }
+      };
+    case 'thisYear':
+      return {
+        dateExport: {
+          [Op.gte]: startOfYear.toISOString(),
+          [Op.lte]: now.toISOString()
+        }
+      };
+    default:
+      return {};
+  }
+};
+
+  // Get overall statistics
+const getOverallStats = async (req, res) => {
+    try {
+      const { timeRange = 'thisMonth' } = req.query;
+      const dateCondition = getDateCondition(timeRange);
+
+      // Lấy tất cả đơn hàng trong khoảng thời gian
+      const orders = await ExportOrder.findAll({
+        where: {
+          ...dateCondition,
+          userId: {
+            [Op.in]: sequelize.literal(`(SELECT id FROM Users WHERE role = 'SALE')`)
+          }
+        }
+      });
+
+      // Tính toán thống kê
+      const totalOrders = orders.length;
+      const totalRevenue = orders.reduce((sum, order) => sum + parseFloat(order.total_price || 0), 0);
+      const completedOrders = orders.filter(order => order.status).length;
+      
+      // Tính % thay đổi so với tháng trước (nếu timeRange là thisMonth)
+      let revenueGrowth = 0;
+      if (timeRange === 'thisMonth') {
+        const lastMonthCondition = getDateCondition('lastMonth');
+        const lastMonthOrders = await ExportOrder.findAll({
+          where: {
+            ...lastMonthCondition,
+            userId: {
+              [Op.in]: sequelize.literal(`(SELECT id FROM Users WHERE role = 'SALE')`)
+            }
+          }
+        });
+        const lastMonthRevenue = lastMonthOrders.reduce((sum, order) => 
+          sum + parseFloat(order.total_price || 0), 0);
+        revenueGrowth = lastMonthRevenue ? 
+          ((totalRevenue - lastMonthRevenue) / lastMonthRevenue * 100).toFixed(1) : 0;
+      }
+
+      res.json({data:{
+        totalOrders,
+        totalRevenue,
+        completedOrders,
+        completionRate: ((completedOrders / totalOrders) * 100).toFixed(1),
+        revenueGrowth
+      }
+        
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Get monthly revenue chart data
+const  getMonthlyRevenue = async (req, res) => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const monthlyData = await ExportOrder.findAll({
+        attributes: [
+          [sequelize.fn('MONTH', sequelize.col('dateExport')), 'month'],
+          [sequelize.fn('SUM', sequelize.cast(sequelize.col('total_price'), 'float')), 'revenue']
+        ],
+        where: {
+          dateExport: {
+            [Op.gte]: new Date(currentYear, 0, 1).toISOString(),
+            [Op.lte]: new Date(currentYear, 11, 31).toISOString()
+          },
+          userId: {
+            [Op.in]: sequelize.literal(`(SELECT id FROM Users WHERE role = 'SALE')`)
+          }
+        },
+        group: [sequelize.fn('MONTH', sequelize.col('dateExport'))],
+        order: [[sequelize.fn('MONTH', sequelize.col('dateExport')), 'ASC']]
+      });
+
+      const chartData = Array.from({ length: 12 }, (_, i) => ({
+        name: `T${i + 1}`,
+        'Doanh thu': 0
+      }));
+
+      monthlyData.forEach(data => {
+        const month = data.getDataValue('month') - 1;
+        chartData[month]['Doanh thu'] = parseFloat(data.getDataValue('revenue'));
+      });
+
+      res.json({data:chartData});
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Get employee statistics
+const getEmployeeStats = async (req, res) => {
+    try {
+      const { timeRange = 'thisMonth' } = req.query;
+      const dateCondition = getDateCondition(timeRange);
+
+      const employees = await User.findAll({
+        where: { role: 'SALE' },
+        include: [{
+          model: ExportOrder,
+          as: 'exportOrder',
+          where: dateCondition,
+          required: false
+        }],
+        attributes: [
+          'id',
+          'firstName',
+          'lastName',
+          [sequelize.fn('COUNT', sequelize.col('exportOrder.id')), 'totalOrders'],
+          [sequelize.fn('SUM', 
+            sequelize.cast(sequelize.col('exportOrder.total_price'), 'float')), 'totalRevenue'],
+          [sequelize.fn('SUM', 
+            sequelize.literal('CASE WHEN exportOrder.status = true THEN 1 ELSE 0 END')), 
+            'completedOrders']
+        ],
+        group: ['User.id']
+      });
+
+      const employeeData = employees.map(emp => ({
+        id: emp.id,
+        name: `${emp.firstName} ${emp.lastName}`,
+        totalOrders: parseInt(emp.getDataValue('totalOrders')),
+        totalRevenue: parseFloat(emp.getDataValue('totalRevenue') || 0),
+        completedOrders: parseInt(emp.getDataValue('completedOrders')),
+        pendingOrders: parseInt(emp.getDataValue('totalOrders')) - 
+          parseInt(emp.getDataValue('completedOrders'))
+      }));
+
+      res.json({data:employeeData});
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+
 module.exports = {
   getInventoryReport,
-  validateDateRange
+  validateDateRange,
+  getOverallStats,
+  getMonthlyRevenue,
+  getEmployeeStats
 };
