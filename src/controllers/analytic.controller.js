@@ -1,6 +1,6 @@
 const createError = require('http-errors');
 const { Op } = require('sequelize');
-const {ExportOrder,PurchaseOrder, Customer, sequelize} = require('~/models');
+const {ExportOrder,PurchaseOrder,ExportOrderDetail,Product, Customer,User, sequelize} = require('~/models');
 
 const getTotalIncomeCurrentMonth = async (req, res) => {
   try {
@@ -443,33 +443,42 @@ const getTopExportProducts = async (req, res) => {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
-    const topProducts = await PurchaseOrderDetail.findAll({
+    const topProducts = await ExportOrderDetail.findAll({
       attributes: [
         'productId',
-        [sequelize.fn('SUM', sequelize.cast(sequelize.col('quantity'), 'INTEGER')), 'total_quantity'],
-        [sequelize.fn('COUNT', sequelize.col('purchaseOrderId')), 'order_count'],
+        [sequelize.fn('SUM', sequelize.cast(sequelize.col('quantity'), 'DECIMAL')), 'export_quantity'],
+        [sequelize.fn('COUNT', sequelize.col('exportOrderId')), 'order_count'],
         [sequelize.fn('SUM', 
           sequelize.cast(sequelize.col('totalPrice'), 'DECIMAL')
         ), 'total_amount']
       ],
       include: [
         {
-          model: PurchaseOrder,
-          as: 'purchaseOrder',
+          model: ExportOrder,
+          as: 'exportOrder',
           attributes: [],
           where: sequelize.and(
-            sequelize.where(sequelize.fn('MONTH', sequelize.col('dateImport')), currentMonth),
-            sequelize.where(sequelize.fn('YEAR', sequelize.col('dateImport')), currentYear)
+            sequelize.where(
+              sequelize.fn('MONTH', sequelize.col('exportOrder.createdAt')), 
+              currentMonth
+            ),
+            sequelize.where(
+              sequelize.fn('YEAR', sequelize.col('exportOrder.createdAt')), 
+              currentYear
+            )
           )
         },
         {
           model: Product,
           as: 'product',
-          attributes: ['name', 'stock', 'icon'] // Giả sử Product model có các trường này
+          attributes: [
+            'product_name',
+            'inventory_quantity'
+          ]
         }
       ],
-      group: ['productId', 'product.id'], // Thêm product.id vào group by để tránh lỗi
-      order: [[sequelize.fn('SUM', sequelize.cast(sequelize.col('quantity'), 'INTEGER')), 'DESC']],
+      group: ['productId', 'product.id'],
+      order: [[sequelize.fn('SUM', sequelize.cast(sequelize.col('quantity'), 'DECIMAL')), 'DESC']],
       limit: 5
     });
 
@@ -477,16 +486,14 @@ const getTopExportProducts = async (req, res) => {
     const formattedData = topProducts.map((item, index) => {
       const plainItem = item.get({ plain: true });
       return {
-        id: index + 1, // STT
-        product: {
-          name: plainItem.product.name,
-          icon: plainItem.product.icon || 'Package' // Default icon nếu không có
-        },
-        quantity: parseInt(plainItem.total_quantity),
+        stt: index + 1,
+        product_name: plainItem.product.product_name,
+        export_quantity: parseInt(plainItem.export_quantity),
         order_count: parseInt(plainItem.order_count),
-        stock: plainItem.product.stock || 0,
-        total_amount: parseFloat(plainItem.total_amount),
-        formatted_total: new Intl.NumberFormat('vi-VN', {
+        inventory: plainItem.product.inventory_quantity > 0 
+          ? plainItem.product.inventory_quantity 
+          : 'Out of stock',
+        total_amount: new Intl.NumberFormat('vi-VN', {
           style: 'currency',
           currency: 'VND'
         }).format(plainItem.total_amount)
@@ -494,7 +501,6 @@ const getTopExportProducts = async (req, res) => {
     });
 
     return res.status(200).json({
-      success: true,
       data: formattedData
     });
 
@@ -510,6 +516,7 @@ const getTopExportProducts = async (req, res) => {
 };
 
 
+
 const getTopEmployees = async (req, res) => {
   try {
     const now = new Date();
@@ -521,36 +528,38 @@ const getTopEmployees = async (req, res) => {
         'id',
         'firstName',
         'lastName',
-        [sequelize.fn('COUNT', sequelize.col('exportOrder.id')), 'order_count'],
+        'role',
+        [sequelize.fn('COUNT', sequelize.col('ExportOrders.id')), 'order_count'], // Dùng alias 'ExportOrders.id'
         [
-          sequelize.fn('SUM', 
-            sequelize.cast(sequelize.col('exportOrder.total_price'), 'DECIMAL')
-          ),
+          sequelize.fn('SUM', sequelize.cast(sequelize.col('ExportOrders.total_price'), 'DECIMAL')),
           'total_amount'
         ]
       ],
       include: [{
         model: ExportOrder,
-        as: 'exportOrder',
+        as: 'ExportOrders', // Khớp với alias mới
         attributes: [],
         where: sequelize.and(
           sequelize.where(
-            sequelize.fn('MONTH', sequelize.fn('STR_TO_DATE', sequelize.col('dateExport'), '%Y-%m-%d')), 
+            sequelize.fn('MONTH', sequelize.fn('STR_TO_DATE', sequelize.col('ExportOrders.dateExport'), '%Y-%m-%d')),
             currentMonth
           ),
           sequelize.where(
-            sequelize.fn('YEAR', sequelize.fn('STR_TO_DATE', sequelize.col('dateExport'), '%Y-%m-%d')), 
+            sequelize.fn('YEAR', sequelize.fn('STR_TO_DATE', sequelize.col('ExportOrders.dateExport'), '%Y-%m-%d')),
             currentYear
           ),
           {
-            status: true // Chỉ tính các đơn hàng đã hoàn thành
+            status: true
           }
         ),
         required: true
       }],
-      group: ['User.id'],
-      order: [[sequelize.fn('COUNT', sequelize.col('exportOrder.id')), 'DESC']],
-      limit: 4 // Lấy top 4 nhân viên
+      where: {
+        role: 'STAFF'
+      },
+      group: ['User.id', 'User.firstName', 'User.lastName', 'User.role'],
+      order: [[sequelize.literal('total_amount'), 'DESC']],
+      limit: 4
     });
 
     // Format response data
@@ -561,18 +570,16 @@ const getTopEmployees = async (req, res) => {
       const totalAmount = parseFloat(plainEmployee.total_amount || 0);
       const formattedAmount = new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'USD'
+        currency: 'USD',
+        maximumFractionDigits: 0
       }).format(totalAmount);
 
       return {
-        id: index + 1, // STT
-        employee: {
-          name: `${plainEmployee.firstName} ${plainEmployee.lastName}`.trim(),
-          department: employee.role || 'Staff' // Phòng ban/vai trò của nhân viên
-        },
+        stt: index + 1,
+        employee: plainEmployee.firstName + ' ' + plainEmployee.lastName,
+        department: plainEmployee.role || 'Staff',
         order_count: parseInt(plainEmployee.order_count || 0),
-        total_amount: totalAmount,
-        formatted_amount: formattedAmount
+        total_amount: formattedAmount
       };
     });
 
@@ -597,6 +604,7 @@ const getTopEmployees = async (req, res) => {
     });
   }
 };
+
 
 // Format date helper function (nếu cần)
 // const formatDate = (dateStr) => {
