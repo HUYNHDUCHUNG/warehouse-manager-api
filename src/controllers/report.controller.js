@@ -382,7 +382,8 @@ const getEmployeeStats = async (req, res) => {
             sequelize.literal('CASE WHEN exportOrder.status = true THEN 1 ELSE 0 END')), 
             'completedOrders']
         ],
-        group: ['User.id']
+        group: ['User.id'],
+        order: [[sequelize.literal('totalRevenue'), 'DESC']],
       });
 
       const employeeData = employees.map(emp => ({

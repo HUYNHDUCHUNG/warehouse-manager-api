@@ -524,12 +524,15 @@ const getTopEmployees = async (req, res) => {
     const currentMonth = now.getMonth() + 1;
 
     const topEmployees = await User.findAll({
+      where: {
+        role: 'SELL'
+      },
       attributes: [
         'id',
         'firstName',
         'lastName',
         'role',
-        [sequelize.fn('COUNT', sequelize.col('ExportOrders.id')), 'order_count'], // Dùng alias 'ExportOrders.id'
+        [sequelize.fn('COUNT', sequelize.col('exportOrder.id')), 'order_count'], // Dùng alias 'ExportOrders.id'
         [
           sequelize.fn('SUM', sequelize.cast(sequelize.col('ExportOrders.total_price'), 'DECIMAL')),
           'total_amount'
@@ -537,15 +540,15 @@ const getTopEmployees = async (req, res) => {
       ],
       include: [{
         model: ExportOrder,
-        as: 'ExportOrders', // Khớp với alias mới
+        as: 'exportOrder', // Khớp với alias mới
         attributes: [],
         where: sequelize.and(
           sequelize.where(
-            sequelize.fn('MONTH', sequelize.fn('STR_TO_DATE', sequelize.col('ExportOrders.dateExport'), '%Y-%m-%d')),
+            sequelize.fn('MONTH', sequelize.fn('STR_TO_DATE', sequelize.col('exportOrder.dateExport'), '%Y-%m-%d')),
             currentMonth
           ),
           sequelize.where(
-            sequelize.fn('YEAR', sequelize.fn('STR_TO_DATE', sequelize.col('ExportOrders.dateExport'), '%Y-%m-%d')),
+            sequelize.fn('YEAR', sequelize.fn('STR_TO_DATE', sequelize.col('exportOrder.dateExport'), '%Y-%m-%d')),
             currentYear
           ),
           {
@@ -554,9 +557,7 @@ const getTopEmployees = async (req, res) => {
         ),
         required: true
       }],
-      where: {
-        role: 'STAFF'
-      },
+      
       group: ['User.id', 'User.firstName', 'User.lastName', 'User.role'],
       order: [[sequelize.literal('total_amount'), 'DESC']],
       limit: 4
@@ -616,6 +617,79 @@ const getTopEmployees = async (req, res) => {
 //   }
 // };
 
+const getOrderStatistics = async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    
+    // Thống kê đơn xuất hàng theo tháng
+    const exportStats = await ExportOrder.findAll({
+      attributes: [
+        [sequelize.fn('MONTH', sequelize.col('dateExport')), 'month'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'exportCount']
+      ],
+      where: {
+        dateExport: {
+          [Op.between]: [`${currentYear}-01-01`, `${currentYear}-12-31`]
+        },
+        status: true // Chỉ lấy những đơn đã hoàn thành
+      },
+      group: [sequelize.fn('MONTH', sequelize.col('dateExport'))],
+      raw: true
+    });
+
+    // Thống kê đơn nhập hàng theo tháng
+    const purchaseStats = await PurchaseOrder.findAll({
+      attributes: [
+        [sequelize.fn('MONTH', sequelize.col('dateImport')), 'month'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'purchaseCount']
+      ],
+      where: {
+        dateImport: {
+          [Op.between]: [`${currentYear}-01-01`, `${currentYear}-12-31`]
+        }
+      },
+      group: [sequelize.fn('MONTH', sequelize.col('dateImport'))],
+      raw: true
+    });
+
+    // Tạo mảng kết quả cho 12 tháng
+    const monthlyStats = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const exportData = exportStats.find(stat => Number(stat.month) === month) || {
+        exportCount: 0
+      };
+      const purchaseData = purchaseStats.find(stat => Number(stat.month) === month) || {
+        purchaseCount: 0
+      };
+
+      // Tổng số đơn = đơn nhập + đơn xuất
+      const totalOrders = Number(exportData.exportCount) + Number(purchaseData.purchaseCount);
+
+      return {
+        name: `T${month}`,
+        Orders: totalOrders,
+        ExportOrder: Number(exportData.exportCount)
+      };
+    });
+
+    return res.status(200).json({
+      data:{
+        success: true,
+        data: monthlyStats,
+        message: 'Lấy thống kê đơn hàng thành công'
+      }
+      
+    });
+
+  } catch (error) {
+    console.error('Error in orderStatistics:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê đơn hàng',
+      error: error.message
+    });
+  }
+};
 
 module.exports ={
     getTotalIncomeCurrentMonth,
@@ -623,5 +697,6 @@ module.exports ={
     getMonthlyPurchaseOrderStats,
     getCustomerStats,
     getTopExportProducts,
-    getTopEmployees
+    getTopEmployees,
+    getOrderStatistics
 }
