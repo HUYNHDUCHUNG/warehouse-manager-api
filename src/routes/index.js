@@ -7,11 +7,13 @@ const purchaseOrderRouter = require('./purchase-order.route')
 const exportOrderRouter = require('./export-order.route')
 const authRouter = require('./auth.route')
 const analyticdRouter = require('./analytic.route')
+const userRouter = require('./user.route')
 const reportRouter = require('./report.route')
 
 
 router.use('/auth',authRouter)
 router.use('/analytic',analyticdRouter)
+router.use('/user',userRouter)
 router.use('/report',reportRouter)
 router.use('/category',categoryRouter)
 router.use('/product',productRouter)

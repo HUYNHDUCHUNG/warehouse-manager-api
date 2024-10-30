@@ -8,14 +8,17 @@ const createCustomer = async (req, res, next) => {
         contract,
         email,
         phone,
+        type,
       } = req.body;
-      console.log("name:",email)
+      // console.log("name:",email)
   
       const newCustomer = await Customer.create({
         fullName,
         contract,
         email,
         phone,
+        type,
+
       })
   
       return res.json({
@@ -28,9 +31,10 @@ const createCustomer = async (req, res, next) => {
   };
 const getAllCustomer = async (req,res,next) =>{
     try {
-        const customer = await Customer.findAll()
+        const customers = await Customer.findAll()
+        console.log(customers)
         return res.json({
-            data:customer
+            data:customers
         })
     } catch (error) {
      
@@ -47,6 +51,7 @@ const updateCustomer = async (req,res,next) =>{
             contract,
             email,
             phone,
+            type,
           } = req.body;
         const newCustomer = await Customer.update(
             {
@@ -54,6 +59,8 @@ const updateCustomer = async (req,res,next) =>{
                 contract,
                 email,
                 phone,
+                type,
+
             },
             {
               where:{id}   

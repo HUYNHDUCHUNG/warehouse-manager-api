@@ -24,7 +24,13 @@ module.exports = {
       role: {
         type: Sequelize.STRING
       },
-      contact: {
+      status: {
+        type: Sequelize.BOOLEAN
+      },
+      contract: {
+        type: Sequelize.STRING
+      },
+      phone: {
         type: Sequelize.STRING
       },
       createdAt: {

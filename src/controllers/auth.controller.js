@@ -18,7 +18,7 @@ const {User} = require('~/models')
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-  
+  // generateHash()
   try {
     const user = await User.findOne({ where: { email } });
     if (!user) {
