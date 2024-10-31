@@ -38,7 +38,7 @@ const login = async (req, res) => {
     );
 
     return res.json({
-        data:{ token,status:true ,role: user.role}
+        data:{ token,status:true ,role: user.role,id:user.id}
     });
   } catch (error) {
     console.error(error);

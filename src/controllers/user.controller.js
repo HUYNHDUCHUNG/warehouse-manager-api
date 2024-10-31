@@ -10,8 +10,7 @@ const getUsers = async(req, res) =>{
 
       const whereClause = {
         [Op.or]: [
-          { firstName: { [Op.like]: `%${search}%` } },
-          { lastName: { [Op.like]: `%${search}%` } },
+          { fullName: { [Op.like]: `%${search}%` } },
           { email: { [Op.like]: `%${search}%` } }
         ]
       };
@@ -67,10 +66,10 @@ const getUserById = async(req, res) =>{
   // Create new user
 const createUser = async(req, res)=> {
     try {
-      const { firstName, lastName, email, password, role, contact } = req.body;
+      const { fullName, email, password, role, contract,phone } = req.body;
 
       // Validate required fields
-      if (!firstName || !lastName || !email || !password || !role) {
+      if ( !fullName || !email || !password || !role) {
         return res.status(400).json({ message: 'Please provide all required fields' });
       }
 
@@ -86,17 +85,18 @@ const createUser = async(req, res)=> {
 
       // Create user
       const user = await User.create({
-        firstName,
-        lastName,
+        fullName,
         email,
         password: hashedPassword,
         role,
-        contact
+        contract,
+        phone,
+        status: true
       });
 
       // Return user without password
       const { password: _, ...userWithoutPassword } = user.toJSON();
-      res.status(201).json(userWithoutPassword);
+      res.status(201).json({data:userWithoutPassword});
 
     } catch (error) {
       res.status(500).json({ 
@@ -110,7 +110,7 @@ const createUser = async(req, res)=> {
   const updateUser = async(req, res)=> {
     try {
       const { id } = req.params;
-      const { firstName, lastName, email, password, role, contact } = req.body;
+      const { fullName, email, password, role, contact } = req.body;
 
       const user = await User.findByPk(id);
       if (!user) {
@@ -127,8 +127,7 @@ const createUser = async(req, res)=> {
 
       // Update user data
       const updateData = {
-        firstName: firstName || user.firstName,
-        lastName: lastName || user.lastName,
+        fullName: fullName || user.fullName,
         email: email || user.email,
         role: role || user.role,
         contact: contact || user.contact
@@ -144,7 +143,7 @@ const createUser = async(req, res)=> {
 
       // Return updated user without password
       const { password: _, ...userWithoutPassword } = user.toJSON();
-      res.json(userWithoutPassword);
+      res.json({data:userWithoutPassword});
 
     } catch (error) {
       res.status(500).json({ 
