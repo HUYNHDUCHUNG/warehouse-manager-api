@@ -4,10 +4,10 @@ const {Category} = require('~/models')
 
 const createCategory = async (req,res,next) => {
     try{
-        const {category_name} = req.body
-        console.log("test",category_name)
+        const {name} = req.body
+        console.log("test",name)
         const newCategory = await Category.create({
-            name: category_name
+            name
         })
 
         return res.json({
@@ -24,6 +24,24 @@ const getAllCategory = async (req,res,next) =>{
         return res.json({
             data:Categories
         }) 
+    } catch (error) {
+        return next(createError(500))
+    }
+}
+const updateCategoryById = async (req,res,next) =>{
+    try {
+        const {id,name} = req.params
+        const newCategory = await Category.update({
+            name
+        },
+        {
+            where: id
+        }
+        )
+        return res.json({
+            data:newCategory
+        })
+        
     } catch (error) {
         return next(createError(500))
     }
@@ -50,5 +68,6 @@ const delCategoryById = async (req,res,next) =>{
 module.exports ={
     createCategory,
     getAllCategory,
-    delCategoryById
+    delCategoryById,
+    updateCategoryById
 }
