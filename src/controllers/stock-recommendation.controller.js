@@ -1,4 +1,4 @@
-const { Product, ExportOrder, ExportOrderDetail } = require('~/models');
+const { Product, ExportOrder, ExportOrderDetail,Customer,User } = require('~/models');
 const { Op } = require('sequelize');
 
 exports.getInventoryRecommendations = async (req, res) => {
@@ -46,8 +46,11 @@ exports.getInventoryRecommendations = async (req, res) => {
 
     // Trả về danh sách sản phẩm cần nhập
     res.status(200).json({
-      message: 'Danh sách sản phẩm đề xuất nhập từ các đơn hàng chưa xử lý',
-      recommendations: recommendedProducts
+      data:{
+        message: 'Danh sách sản phẩm đề xuất nhập từ các đơn hàng chưa xử lý',
+        recommendations: recommendedProducts
+      }
+      
     });
   } catch (error) {
     console.error('Lỗi khi tạo đề xuất nhập hàng:', error);
@@ -75,11 +78,11 @@ exports.getUnprocessedExportOrderDetails = async (req, res) => {
         },
         include: [
           { 
-            model: models.Customer, 
+            model: Customer, 
             as: 'customer' 
           },
           { 
-            model: models.User, 
+            model: User, 
             as: 'user' 
           }
         ]
@@ -90,8 +93,11 @@ exports.getUnprocessedExportOrderDetails = async (req, res) => {
     });
 
     res.status(200).json({
-      message: 'Chi tiết các đơn hàng chưa xử lý cho sản phẩm',
-      unprocessedOrders: unprocessedOrders
+      data:{
+        message: 'Chi tiết các đơn hàng chưa xử lý cho sản phẩm',
+        unprocessedOrders: unprocessedOrders
+      }
+      
     });
   } catch (error) {
     console.error('Lỗi khi lấy chi tiết đơn hàng chưa xử lý:', error);
