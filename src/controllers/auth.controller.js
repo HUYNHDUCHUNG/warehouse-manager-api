@@ -1,7 +1,7 @@
 // backend/src/controllers/authController.js
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const {User} = require('~/models')
+const {User} = require('~/models');
 
 // async function generateHash() {
 //   const password = "admin123";
@@ -30,15 +30,16 @@ const login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    console.log(user)
 
     const token = jwt.sign(
-      { userId: user._id },
+      { id: user.id },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
     return res.json({
-        data:{ token,status:true ,role: user.role,id:user.id}
+        data:{ token,status:true ,role: user.role}
     });
   } catch (error) {
     console.error(error);
@@ -46,6 +47,28 @@ const login = async (req, res) => {
   }
 };
 
+const getMe = async (req,res) =>{
+  try {
+    const id = req.user.id
+    console.log("ID:",id)
+
+    const user = await User.findOne({
+      where:{
+        id
+      }
+    })
+    
+    return res.json({
+      data:{
+        user
+      }
+    })
+  } catch (error) {
+    
+  }
+}
+
 module.exports ={
-   login
+   login,
+   getMe
 }
