@@ -35,7 +35,7 @@ const login = async (req, res) => {
     const token = jwt.sign(
       { id: user.id },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '7d' }
     );
 
     return res.json({
@@ -55,7 +55,8 @@ const getMe = async (req,res) =>{
     const user = await User.findOne({
       where:{
         id
-      }
+      },
+      attributes: { exclude: ['password'] },
     })
     
     return res.json({
