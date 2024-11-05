@@ -12,8 +12,9 @@ const createPurchaseOrder = async (req, res, next) => {
         products
 
       } = req.body;
-  
-      console.log("note:",products)
+      const userId = req.user.id
+      console.log('ID:',userId)
+      // console.log("note:",products)
        const codePurchaseOrder = generateMaPhieu('PN')
   
       const newPurchaseOrder = await PurchaseOrder.create({
@@ -21,6 +22,7 @@ const createPurchaseOrder = async (req, res, next) => {
         supplier_id,
         note,
         dateImport,
+        userId
       });
 
        // Tạo PurchaseOrderDetail cho mỗi sản phẩm
@@ -98,6 +100,12 @@ const createPurchaseOrder = async (req, res, next) => {
               attributes:{
                 include:['supplier_name']
               }
+            },
+            {
+              association: 'user',
+              attributes:{
+                exclude:['password']
+              }
             }
           ]
           
@@ -119,6 +127,12 @@ const getAllPurchaseOrder = async (req,res,next) =>{
               association: 'supplier',
               attributes:{
                 include:['supplier_name']
+              }
+            },
+            {
+              association: 'user',
+              attributes:{
+                exclude:['password']
               }
             }
           ]

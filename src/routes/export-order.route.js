@@ -1,6 +1,7 @@
 const  router  = require("express").Router();
-const exportOrderController = require("~/controllers/export-order.controller")
-router.post('/',exportOrderController.createExportOrder)
+const exportOrderController = require("~/controllers/export-order.controller");
+const authMiddleware = require("~/middleware/auth");
+router.post('/',authMiddleware,exportOrderController.createExportOrder)
 router.get('/',exportOrderController.getAllExportOrder)
 router.get('/:id',exportOrderController.getExportById)
 router.patch('/:id',exportOrderController.updateOrderStatus)

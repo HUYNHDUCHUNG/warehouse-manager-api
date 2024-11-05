@@ -11,10 +11,12 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       PurchaseOrder.belongsTo(models.Supplier, { foreignKey: 'supplier_id', as: 'supplier' })
+      PurchaseOrder.belongsTo(models.User, { foreignKey: 'userId', as: 'user' })
       PurchaseOrder.hasMany(models.PurchaseOrderDetail, {
         foreignKey: 'purchaseOrderId',
         as: 'purchaseOrderDetails', 
       });
+
     }
   }
   PurchaseOrder.init({
@@ -23,6 +25,7 @@ module.exports = (sequelize, DataTypes) => {
     total_price: DataTypes.BIGINT,
     supplier_id: DataTypes.STRING,
     note: DataTypes.STRING,
+    userId: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'PurchaseOrder',

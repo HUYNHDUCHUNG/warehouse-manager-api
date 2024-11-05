@@ -13,6 +13,8 @@ const createExportOrder = async (req, res, next) => {
         products
 
       } = req.body;
+
+      const userId = req.user.id
   
       console.log("note:",products)
        const codeExportOrder = generateMaPhieu('PX')
@@ -23,6 +25,7 @@ const createExportOrder = async (req, res, next) => {
         note,
         dateExport,
         status: false,
+        userId,
         transaction
       });
 
@@ -79,6 +82,12 @@ const getExportById = async (req, res, next) => {
                     {
                         association: 'customer',
                         attributes: ['id', 'fullName', 'contract', 'email', 'phone']
+                    },
+                    {
+                      association: 'user',
+                      attributes: {
+                        exclude:['password']
+                      }
                     },
                 ]
             });
@@ -151,7 +160,13 @@ const getAllExportOrder = async (req,res,next) =>{
             association: 'product',
             attributes: ['id', 'product_name', 'inventory_quantity']
           }]
-        }
+        },
+        {
+          association: 'user',
+          attributes: {
+            exclude:['password']
+          }
+        },
       ]
     });
 
