@@ -1,4 +1,5 @@
 const createError = require("http-errors");
+const { where } = require("sequelize");
 const {ExportOrder ,ExportOrderDetail,Product, sequelize} = require("~/models");
 const { generateMaPhieu } = require("~/utils");
 
@@ -199,6 +200,63 @@ const getAllExportOrder = async (req,res,next) =>{
   }
 }
 
+const getAllExportOrderByUser = async (req,res,next) =>{
+  try {
+    const userId = req.user.id
+    const exportOrders = await ExportOrder.findAll({
+      where: {
+          userId
+      },
+      include: [
+          {
+              association: 'customer',
+              attributes: ['fullName']
+          },
+          {
+              association: 'exportOrderDetails',
+              include: [{
+                  association: 'product',
+                  attributes: ['id', 'product_name', 'inventory_quantity']
+              }]
+          },
+          {
+              association: 'user',
+              attributes: {
+                  exclude: ['password']
+              }
+          }
+      ]
+  });
+
+    const processedExportOrders = exportOrders.map(order => {
+      const processedOrder = order.toJSON();
+      
+      processedOrder.exportOrderDetails = processedOrder.exportOrderDetails.map(detail => {
+        const requestedQuantity = parseInt(detail.quantity, 10);
+        const availableQuantity = detail.product.inventory_quantity;
+        
+        return {
+          ...detail,
+          isAvailable: availableQuantity >= requestedQuantity,
+          availableQuantity,
+          shortageQuantity: Math.max(0, requestedQuantity - availableQuantity)
+        };
+      });
+
+      processedOrder.isFullyAvailable = processedOrder.exportOrderDetails.every(detail => detail.isAvailable);
+      
+      return processedOrder;
+    });
+
+    return res.json({
+      data: processedExportOrders
+    });
+  } catch (error) {
+    console.error("Error in getAllExportOrder:", error);
+    return next(createError(500, "An error occurred while fetching export orders"));
+  }
+}
+
 const updateOrderStatus = async (req, res) => {
   const { id } = req.params;  // ID đơn hàng từ URL
   try {
@@ -331,5 +389,6 @@ module.exports = {
   getAllExportOrder,
   updateOrderStatus,
   delExportOrderById,
-  getExportById
+  getExportById,
+  getAllExportOrderByUser
 };

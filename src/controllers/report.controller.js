@@ -373,8 +373,7 @@ const getEmployeeStats = async (req, res) => {
         }],
         attributes: [
           'id',
-          'firstName',
-          'lastName',
+          'fullName',
           [sequelize.fn('COUNT', sequelize.col('exportOrder.id')), 'totalOrders'],
           [sequelize.fn('SUM', 
             sequelize.cast(sequelize.col('exportOrder.total_price'), 'float')), 'totalRevenue'],
@@ -388,7 +387,7 @@ const getEmployeeStats = async (req, res) => {
 
       const employeeData = employees.map(emp => ({
         id: emp.id,
-        name: `${emp.firstName} ${emp.lastName}`,
+        name: `${emp.fullName}`,
         totalOrders: parseInt(emp.getDataValue('totalOrders')),
         totalRevenue: parseFloat(emp.getDataValue('totalRevenue') || 0),
         completedOrders: parseInt(emp.getDataValue('completedOrders')),
