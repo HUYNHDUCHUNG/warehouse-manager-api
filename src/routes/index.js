@@ -10,10 +10,12 @@ const analyticdRouter = require('./analytic.route')
 const userRouter = require('./user.route')
 const reportRouter = require('./report.route')
 const stockRecommendationRouter = require('./stock-recommendation.route')
+const importSuggestionRouter = require('./import-suggestion.route')
 
 
 router.use('/auth',authRouter)
 router.use('/recommendation',stockRecommendationRouter)
+router.use('/import-suggestion',importSuggestionRouter)
 router.use('/analytic',analyticdRouter)
 router.use('/user',userRouter)
 router.use('/report',reportRouter)

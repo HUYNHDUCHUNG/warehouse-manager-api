@@ -3,22 +3,22 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const {User} = require('~/models');
 
-// async function generateHash() {
-//   const password = "admin123";
-//   const saltRounds = 10;
+async function generateHash() {
+  const password = "admin123";
+  const saltRounds = 10;
   
-//   try {
-//     const hash = await bcrypt.hash(password, saltRounds);
-//     console.log("Password hash:", hash);
-//   } catch (err) {
-//     console.error("Error generating hash:", err);
-//   }
-// }
+  try {
+    const hash = await bcrypt.hash(password, saltRounds);
+    console.log("Password hash:", hash);
+  } catch (err) {
+    console.error("Error generating hash:", err);
+  }
+}
 
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-  // generateHash()
+  generateHash()
   try {
     const user = await User.findOne({ where: { email } });
     if (!user) {

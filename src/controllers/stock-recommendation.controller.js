@@ -7,34 +7,56 @@ exports.getInventoryRecommendations = async (req, res) => {
     const recommendedProducts = [];
 
     for (let product of products) {
-      // Tính tổng số lượng xuất của sản phẩm từ các đơn hàng chưa xử lý
-      const totalExportQuantity = await ExportOrderDetail.sum('quantity', {
-        include: [{
-          model: ExportOrder,
-          as: 'exportOrder',
-          where: {
-            status: false,
-            dateExport: {
-              [Op.gte]: new Date(new Date() - 30 * 24 * 60 * 60 * 1000)
-            }
-          }
-        }],
+      // Kiểm tra xem sản phẩm đã có đề xuất chưa xử lý hay chưa
+      const existingSuggestion = await ImportSuggestionHistory.findOne({
         where: {
-          productId: product.id
+          productId: product.id,
+          status: 'pending' // Giả sử 'pending' là trạng thái chưa xử lý
         }
       });
 
-      // Kiểm tra điều kiện mới: tồn kho < 100 VÀ tổng số lượng xuất > tồn kho
-      if (product.inventory_quantity < 100 && totalExportQuantity > product.inventory_quantity) {
-        const recommendQuantity = Math.ceil(totalExportQuantity - product.inventory_quantity);
-
-        recommendedProducts.push({
-          productId: product.id,
-          productName: product.product_name,
-          currentInventory: product.inventory_quantity,
-          totalUnprocessedExportQuantity: totalExportQuantity,
-          recommendedImportQuantity: recommendQuantity
+      // Chỉ tiếp tục nếu sản phẩm chưa có đề xuất chưa xử lý
+      if (!existingSuggestion) {
+        // Tính tổng số lượng xuất của sản phẩm từ các đơn hàng chưa xử lý
+        const totalExportQuantity = await ExportOrderDetail.sum('quantity', {
+          include: [{
+            model: ExportOrder,
+            as: 'exportOrder',
+            where: {
+              status: false,
+              dateExport: {
+                [Op.gte]: new Date(new Date() - 30 * 24 * 60 * 60 * 1000)
+              }
+            }
+          }],
+          where: {
+            productId: product.id
+          }
         });
+
+        // Kiểm tra điều kiện: tồn kho < 100 HOẶC tổng số lượng xuất > tồn kho
+        if (product.inventory_quantity < 100 || totalExportQuantity > product.inventory_quantity) {
+          const recommendQuantity = Math.ceil(totalExportQuantity - product.inventory_quantity);
+
+          // Tạo đề xuất mới trong lịch sử
+          await ImportSuggestionHistory.create({
+            productId: product.id,
+            userId: req.user.id, // Giả sử có thông tin user từ middleware xác thực
+            currentInventory: product.inventory_quantity.toString(),
+            suggestedQuantity: recommendQuantity.toString(),
+            totalUnprocessedOrders: totalExportQuantity.toString(),
+            status: 'pending',
+            note: 'Đề xuất tự động từ hệ thống'
+          });
+
+          recommendedProducts.push({
+            productId: product.id,
+            productName: product.product_name,
+            currentInventory: product.inventory_quantity,
+            totalUnprocessedExportQuantity: totalExportQuantity,
+            recommendedImportQuantity: recommendQuantity
+          });
+        }
       }
     }
 
@@ -53,49 +75,49 @@ exports.getInventoryRecommendations = async (req, res) => {
   }
 };
 
-// API để tạo lịch sử đề xuất nhập hàng
-exports.createImportSuggestion = async (req, res) => {
-  try {
-    const { productId, suggestedQuantity, notes } = req.body;
-    const userId = req.user.id; // Assuming you have user information in request
+// // API để tạo lịch sử đề xuất nhập hàng
+// exports.createImportSuggestion = async (req, res) => {
+//   try {
+//     const { productId, suggestedQuantity, notes } = req.body;
+//     const userId = req.user.id; // Assuming you have user information in request
 
-    const product = await Product.findByPk(productId);
-    if (!product) {
-      return res.status(404).json({
-        message: 'Không tìm thấy sản phẩm'
-      });
-    }
+//     const product = await Product.findByPk(productId);
+//     if (!product) {
+//       return res.status(404).json({
+//         message: 'Không tìm thấy sản phẩm'
+//       });
+//     }
 
-    const totalUnprocessedOrders = await ExportOrderDetail.sum('quantity', {
-      include: [{
-        model: ExportOrder,
-        as: 'exportOrder',
-        where: { status: false }
-      }],
-      where: { productId }
-    });
+//     const totalUnprocessedOrders = await ExportOrderDetail.sum('quantity', {
+//       include: [{
+//         model: ExportOrder,
+//         as: 'exportOrder',
+//         where: { status: false }
+//       }],
+//       where: { productId }
+//     });
 
-    const suggestion = await ImportSuggestionHistory.create({
-      productId,
-      userId,
-      currentInventory: product.inventory_quantity,
-      suggestedQuantity,
-      totalUnprocessedOrders,
-      notes
-    });
+//     const suggestion = await ImportSuggestionHistory.create({
+//       productId,
+//       userId,
+//       currentInventory: product.inventory_quantity,
+//       suggestedQuantity,
+//       totalUnprocessedOrders,
+//       notes
+//     });
 
-    res.status(201).json({
-      message: 'Đã tạo đề xuất nhập hàng',
-      data: suggestion
-    });
-  } catch (error) {
-    console.error('Lỗi khi tạo đề xuất nhập hàng:', error);
-    res.status(500).json({
-      message: 'Có lỗi xảy ra khi tạo đề xuất nhập hàng',
-      error: error.message
-    });
-  }
-};
+//     res.status(201).json({
+//       message: 'Đã tạo đề xuất nhập hàng',
+//       data: suggestion
+//     });
+//   } catch (error) {
+//     console.error('Lỗi khi tạo đề xuất nhập hàng:', error);
+//     res.status(500).json({
+//       message: 'Có lỗi xảy ra khi tạo đề xuất nhập hàng',
+//       error: error.message
+//     });
+//   }
+// };
 
 exports.getUnprocessedExportOrderDetails = async (req, res) => {
   try {
