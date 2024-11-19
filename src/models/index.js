@@ -12,12 +12,14 @@ const db = {};
 let sequelize;
 if (config.use_env_variable) {
   sequelize = new Sequelize(process.env[config.use_env_variable], {...config,  dialectOptions: {
-    useUTC: false 
+    useUTC: false ,
+    logging: false
 },
 timezone: '+07:00' });
 } else {
   sequelize = new Sequelize(config.database, config.username, config.password, {...config,  dialectOptions: {
-    useUTC: false 
+    useUTC: false ,
+    logging: false
 },
 timezone: '+07:00' });
 }

@@ -1,6 +1,7 @@
 const createError = require("http-errors");
 const { where } = require("sequelize");
 const { Product } = require("~/models");
+const { generateProductCode } = require("~/utils");
 
 const createProduct = async (req, res, next) => {
     try {
@@ -15,8 +16,10 @@ const createProduct = async (req, res, next) => {
         quantity_warehouse_latest,
       } = req.body;
   
+      const code = generateProductCode('SP')
   
       const newProduct = await Product.create({
+        code,
         product_name,
         category_id,
         description,

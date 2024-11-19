@@ -1,5 +1,6 @@
 const createError = require("http-errors");
 const {Customer} = require("~/models");
+const { generateProductCode } = require("~/utils");
 
 const createCustomer = async (req, res, next) => {
     try {
@@ -10,9 +11,9 @@ const createCustomer = async (req, res, next) => {
         phone,
         type,
       } = req.body;
-      // console.log("name:",email)
-  
+      const code = generateProductCode('KH')
       const newCustomer = await Customer.create({
+        code,
         fullName,
         contract,
         email,

@@ -1,5 +1,6 @@
 const createError = require("http-errors");
 const {Supplier} = require("~/models");
+const { generateProductCode } = require("~/utils");
 
 const createSupplier = async (req, res, next) => {
     try {
@@ -9,9 +10,10 @@ const createSupplier = async (req, res, next) => {
         email,
         phone,
       } = req.body;
-      console.log("name:",email)
+      const code = generateProductCode('NCC')
   
       const newSupplier = await Supplier.create({
+        code,
         supplier_name,
         contract,
         email,

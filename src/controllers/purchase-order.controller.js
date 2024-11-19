@@ -2,7 +2,7 @@ const createError = require("http-errors");
 const {PurchaseOrder ,PurchaseOrderDetail,Product, sequelize, ImportSuggestionHistory} = require("~/models");
 const { generateMaPhieu } = require("~/utils");
 const { Op } = require('sequelize');
-
+const XLSX = require('xlsx');
 
 // Middleware kiểm tra và cập nhật trạng thái đề xuất
 const checkAndUpdateSuggestionStatus = async (req, res, next) => {
@@ -279,11 +279,65 @@ const delPurchaseOrderById = async (req, res, next) => {
   }
 };
 
+const importFilePurchaseOrder = async (req, res) => {
+  try {
+    console.log('Request received');
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file);
+
+    // Kiểm tra file
+    if (!req.file) {
+        console.log('No file received');
+        return res.status(400).json({
+            success: false,
+            message: 'No file uploaded'
+        });
+    }
+
+    // Đọc file Excel
+    try {
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        console.log('Workbook loaded');
+        
+        // Lấy sheet đầu tiên
+        const sheetName = workbook.SheetNames[0];
+        console.log('Sheet name:', sheetName);
+        
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Chuyển đổi sang JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        console.log('Data converted to JSON:', jsonData);
+
+        return res.status(200).json({
+            success: true,
+            message: 'File imported successfully',
+            data: jsonData
+        });
+    } catch (excelError) {
+        console.error('Error processing Excel file:', excelError);
+        return res.status(400).json({
+            success: false,
+            message: 'Error processing Excel file',
+            error: excelError.message
+        });
+    }
+} catch (error) {
+    console.error('Server error:', error);
+    return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message
+    });
+}
+};
+
 module.exports = {
   createPurchaseOrder,
   getAllPurchaseOrder,
   updatePurchaseOrder,
   delPurchaseOrderById,
   getPurchaseById,
-  checkAndUpdateSuggestionStatus
+  checkAndUpdateSuggestionStatus,
+  importFilePurchaseOrder
 };

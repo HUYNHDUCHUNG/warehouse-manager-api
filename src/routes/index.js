@@ -11,9 +11,11 @@ const userRouter = require('./user.route')
 const reportRouter = require('./report.route')
 const stockRecommendationRouter = require('./stock-recommendation.route')
 const importSuggestionRouter = require('./import-suggestion.route')
+const salesKPIRouter = require('./kpi.route')
 
 
 router.use('/auth',authRouter)
+router.use('/kpi',salesKPIRouter)
 router.use('/recommendation',stockRecommendationRouter)
 router.use('/import-suggestion',importSuggestionRouter)
 router.use('/analytic',analyticdRouter)
