@@ -20,13 +20,13 @@ module.exports = {
         type: Sequelize.STRING
       },
       supplier_id: {
-        type: Sequelize.STRING
+        type: Sequelize.INTEGER
       },
       note: {
         type: Sequelize.STRING
       },
       userId: {
-        type: Sequelize.STRING
+        type: Sequelize.INTEGER
       },
       
       createdAt: {

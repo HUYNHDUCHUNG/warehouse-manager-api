@@ -36,15 +36,30 @@ exports.getInventoryRecommendations = async (req, res) => {
 
         // Kiểm tra điều kiện: tồn kho < 100 HOẶC tổng số lượng xuất > tồn kho
         if (product.inventory_quantity < 100 || totalExportQuantity > product.inventory_quantity) {
-          const recommendQuantity = Math.ceil(totalExportQuantity - product.inventory_quantity);
+          let recommendQuantity;
+  
+        if (product.inventory_quantity < 100) {
+          // Nếu tồn kho < 100, đề xuất nhập thêm để đạt mức tối thiểu 100
+          recommendQuantity = 200 - product.inventory_quantity;
+        } 
+        
+        if (totalExportQuantity > product.inventory_quantity) {
+          // Nếu số lượng xuất > tồn kho, đề xuất nhập thêm để đáp ứng đơn hàng
+          const quantityNeeded = totalExportQuantity - product.inventory_quantity;
+          // Lấy giá trị lớn hơn giữa số lượng cần để đạt 100 và số lượng cần để đáp ứng đơn hàng
+          recommendQuantity = Math.max(recommendQuantity || 0, quantityNeeded);
+        }
+
+        // Làm tròn lên
+        recommendQuantity = Math.ceil(recommendQuantity);
 
           // Tạo đề xuất mới trong lịch sử
           await ImportSuggestionHistory.create({
             productId: product.id,
             // userId: req.user.id, // Giả sử có thông tin user từ middleware xác thực
-            currentInventory: product.inventory_quantity.toString(),
-            suggestedQuantity: recommendQuantity.toString(),
-            totalUnprocessedOrders: totalExportQuantity.toString(),
+            currentInventory: product.inventory_quantity?.toString() || '0',
+            suggestedQuantity: recommendQuantity?.toString() || '0',
+            totalUnprocessedOrders: totalExportQuantity?.toString() || '0',
             status: 'pending',
             note: 'Đề xuất tự động từ hệ thống'
           });

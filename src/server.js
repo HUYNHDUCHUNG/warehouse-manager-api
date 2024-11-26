@@ -15,8 +15,8 @@ const SalesKPIController = require("~/controllers/kpi-user.controller");
       console.log('Connection has been established successfully.')
       app.listen(process.env.APP_PORT, () => {
           console.log(`App listening on port ${process.env.APP_PORT}`)
-        //   cron.schedule('10 * * * * *', stockRecommendationController.getInventoryRecommendations)
-          //  cron.schedule('10 * * * * *', SalesKPIController.calculateMonthlyKPI)
+          cron.schedule('10 * * * * *', stockRecommendationController.getInventoryRecommendations)
+           cron.schedule('10 * * * * *', SalesKPIController.calculateMonthlyKPI)
       })
   } catch (error) {
       console.log(error)

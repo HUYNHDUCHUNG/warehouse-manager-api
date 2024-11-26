@@ -10,11 +10,11 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       productId: {
-        type: Sequelize.STRING,
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
       userId: {
-        type: Sequelize.STRING
+        type: Sequelize.INTEGER
       },
       currentInventory: {
         type: Sequelize.STRING

@@ -19,7 +19,7 @@ module.exports = {
         type: Sequelize.STRING
       },
       customerId: {
-        type: Sequelize.STRING
+        type: Sequelize.INTEGER
       },
       note: {
         type: Sequelize.STRING
@@ -28,7 +28,7 @@ module.exports = {
         type: Sequelize.BOOLEAN
       },
       userId: {
-        type: Sequelize.STRING
+        type: Sequelize.INTEGER
       },
       
       createdAt: {

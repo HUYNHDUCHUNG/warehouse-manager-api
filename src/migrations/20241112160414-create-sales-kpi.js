@@ -10,7 +10,7 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       userId: {
-        type: Sequelize.STRING,
+        type: Sequelize.INTEGER,
         allowNull: false
       },
       month: {
@@ -22,11 +22,11 @@ module.exports = {
         allowNull: false
       },
       targetRevenue: {
-        type: Sequelize.DECIMAL(10, 2), // Mục tiêu doanh số (VND)
+        type: Sequelize.STRING, // Mục tiêu doanh số (VND)
         allowNull: false
       },
       actualRevenue: {
-        type: Sequelize.DECIMAL(10, 2), // Doanh số thực tế
+        type: Sequelize.STRING, // Doanh số thực tế
         allowNull: false
       },
       targetOrders: {
