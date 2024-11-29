@@ -32,14 +32,6 @@ module.exports = {
         type: Sequelize.BIGINT,
         defaultValue: 0
       },
-      warehouse_latest: {
-        type: Sequelize.DATE,
-        defaultValue:  Sequelize.NOW
-      },
-      quantity_warehouse_latest: {
-        type: Sequelize.BIGINT,
-        defaultValue: 0
-      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

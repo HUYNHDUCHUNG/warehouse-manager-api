@@ -22,8 +22,6 @@ module.exports = (sequelize, DataTypes) => {
     price: DataTypes.BIGINT,
     unit_calc: DataTypes.STRING,
     inventory_quantity: DataTypes.BIGINT,
-    warehouse_latest: DataTypes.DATE,
-    quantity_warehouse_latest: DataTypes.BIGINT,
   }, {
     sequelize,
     modelName: 'Product',

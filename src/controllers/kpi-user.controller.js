@@ -38,7 +38,7 @@ const calculateMonthlyKPI = async () => {
     const actualOrders = monthlyOrders.length;
 
     // Mục tiêu động theo nhân viên
-    const targetRevenue = user.targetRevenue || 1000000000; // 1 tỷ VND/tháng
+    const targetRevenue = user.targetRevenue || 100000000; // 100 triệu VND/tháng
     const targetOrders = user.targetOrders || 50; // 50 đơn/tháng
 
     // Tính % KPI (trọng số: doanh số 70%, số đơn 30%)
@@ -260,8 +260,56 @@ const generateAllSaleKPIReport = async (req, res) => {
   }
 };
 
+const generateAllMonthSaleKPI = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const currentYear = new Date().getFullYear();
+    // Validate user ID
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    // Fetch SalesKPI data for the specific user
+    const salesKPIData = await SalesKPI.findAll({
+      where: { 
+        userId: userId,
+        year: currentYear
+        // Optional: Add year filter if needed
+        // year: new Date().getFullYear() 
+      },
+      attributes: [
+        'month', 
+        'year', 
+        'targetRevenue', 
+        'actualRevenue', 
+        'targetOrders', 
+        'actualOrders', 
+        'kpiPercentage', 
+        'status'
+      ],
+      order: [['year', 'ASC'], ['month', 'ASC']],
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'fullName'] // Include user details if needed
+      }]
+    });
+
+    // If no data found
+    if (salesKPIData.length === 0) {
+      return res.status(404).json({ error: 'No KPI data found for this user' });
+    }
+
+    res.status(200).json({data:salesKPIData});
+  } catch (error) {
+    console.error('Error fetching sales KPI:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
   module.exports ={
     calculateMonthlyKPI,
     generateAllSaleKPIReport,
-    getMySalesKPI
+    getMySalesKPI,
+    generateAllMonthSaleKPI
   }

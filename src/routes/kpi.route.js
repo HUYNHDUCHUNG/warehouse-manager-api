@@ -5,6 +5,7 @@ const salesKPIController = require('~/controllers/kpi-user.controller')
 const authMiddleware = require('~/middleware/auth');
 
 router.get('/my-kpi', authMiddleware,salesKPIController.getMySalesKPI);
+router.get('/my-kpi-all-month', authMiddleware,salesKPIController.generateAllMonthSaleKPI);
 router.get('/report-kpi', salesKPIController.generateAllSaleKPIReport);
 
 // router.put('/kpi', async (req, res) => {

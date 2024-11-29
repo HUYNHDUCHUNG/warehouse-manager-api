@@ -20,12 +20,17 @@ const getUsers = async(req, res) =>{
       }
 
       const { count, rows } = await User.findAndCountAll({
-        where: whereClause,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        attributes: { exclude: ['password'] }, // Don't send password in response
-        order: [['createdAt', 'DESC']]
-      });
+      where: {
+        ...whereClause,
+        role: {
+          [Op.ne]: 'AD' // Exclude users with 'Admin' role
+        }
+      },
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      attributes: { exclude: ['password'] }, // Don't send password in response
+      order: [['createdAt', 'DESC']]
+    });
 
       res.json({
         data:{
@@ -66,7 +71,7 @@ const getUserById = async(req, res) =>{
   // Create new user
 const createUser = async(req, res)=> {
     try {
-      const { fullName, email, password, role, contract,phone } = req.body;
+      const { fullName, email, password, role, contract,phone,targetRevenue,targetOrders } = req.body;
 
       // Validate required fields
       if ( !fullName || !email || !password || !role) {
@@ -91,7 +96,9 @@ const createUser = async(req, res)=> {
         role,
         contract,
         phone,
-        status: true
+        status: true,
+        targetRevenue,
+        targetOrders
       });
 
       // Return user without password
@@ -110,7 +117,7 @@ const createUser = async(req, res)=> {
   const updateUser = async(req, res)=> {
     try {
       const { id } = req.params;
-      const { fullName, email, password, role, contact } = req.body;
+      const { fullName, email, password, role, contact,targetRevenue,targetOrders } = req.body;
 
       const user = await User.findByPk(id);
       if (!user) {
@@ -130,7 +137,9 @@ const createUser = async(req, res)=> {
         fullName: fullName || user.fullName,
         email: email || user.email,
         role: role || user.role,
-        contact: contact || user.contact
+        contact: contact || user.contact,
+        targetRevenue,
+        targetOrders
       };
 
       // Only update password if provided

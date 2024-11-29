@@ -32,7 +32,9 @@ module.exports = (sequelize, DataTypes) => {
     role: DataTypes.STRING,
     phone: DataTypes.STRING,
     status: DataTypes.BOOLEAN,
-    contract: DataTypes.STRING
+    contract: DataTypes.STRING,
+    targetRevenue: DataTypes.BIGINT,
+    targetOrders: DataTypes.BIGINT
   }, {
     sequelize,
     modelName: 'User',

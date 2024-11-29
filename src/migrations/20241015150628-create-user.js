@@ -22,6 +22,12 @@ module.exports = {
       role: {
         type: Sequelize.STRING
       },
+      targetRevenue: {
+        type: Sequelize.BIGINT
+      },
+      targetOrders: {
+        type: Sequelize.BIGINT
+      },
       status: {
         type: Sequelize.BOOLEAN
       },
