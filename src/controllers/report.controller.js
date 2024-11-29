@@ -1,195 +1,234 @@
 const { Op } = require('sequelize');
-const { Product,Category,User,sequelize, PurchaseOrder, PurchaseOrderDetail, ExportOrder, ExportOrderDetail } = require('~/models');
+const { Product,Category,User,sequelize, PurchaseOrder, InventoryReport,PurchaseOrderDetail, ExportOrder, ExportOrderDetail } = require('~/models');
+
+const saveInventoryReportPeriodically = async () => {
+  try {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
+
+    // Lấy danh sách sản phẩm 
+    const products = await Product.findAll({
+      include: [
+        {
+          model: Category,
+          as: 'category',
+          attributes: ['name']
+        }
+      ]
+    });
+
+    // Lấy chi tiết nhập kho trong khoảng thời gian
+    const purchaseDetails = await PurchaseOrderDetail.findAll({
+      include: [
+        {
+          model: PurchaseOrder,
+          as: 'purchaseOrder',
+        },
+        {
+          model: Product,
+          as: 'product',
+        }
+      ]
+    });
+
+    // Lấy chi tiết xuất kho 
+    const exportDetails = await ExportOrderDetail.findAll({
+      include: [
+        {
+          model: ExportOrder,
+          as: 'exportOrder',
+          where: {
+            status: 1
+          }
+        },
+        {
+          model: Product,
+          as: 'product',
+        }
+      ]
+    });
+
+    // Xử lý từng sản phẩm và lưu báo cáo
+    const inventoryReportPromises = products.map(async (product) => {
+      const totalImported = purchaseDetails
+        .filter(detail => Number(detail.productId) === Number(product.id))
+        .reduce((sum, detail) => sum + Number(detail.quantity || 0), 0);
+
+      const totalExported = exportDetails
+        .filter(detail => Number(detail.productId) === Number(product.id))
+        .reduce((sum, detail) => sum + Number(detail.quantity || 0), 0);
+
+      const endingInventory = parseInt(product.inventory_quantity || 0);
+      const beginningInventory = endingInventory - totalImported + totalExported;
+      const inventoryValue = endingInventory * parseInt(product.price || 0);
+
+      // Tìm kiếm hoặc tạo mới báo cáo tồn kho
+      const [inventoryReport, created] = await InventoryReport.findOrCreate({
+        where: {
+          productId: product.id,
+          month: currentMonth,
+          year: currentYear
+        },
+        defaults: {
+          beginningInventory,
+          quantityImported: totalImported,
+          quantityExported: totalExported,
+          endingInventory,
+          inventoryValue,
+          unitPrice: parseInt(product.price || 0)
+        }
+      });
+
+      // Nếu báo cáo đã tồn tại, cập nhật lại
+      if (!created) {
+        await inventoryReport.update({
+          beginningInventory,
+          quantityImported: totalImported,
+          quantityExported: totalExported,
+          endingInventory,
+          inventoryValue,
+          unitPrice: parseInt(product.price || 0)
+        });
+      }
+
+      return inventoryReport;
+    });
+
+    // Thực hiện song song việc tạo/cập nhật báo cáo
+    await Promise.all(inventoryReportPromises);
+
+    console.log('Inventory report saved successfully');
+  } catch (error) {
+    console.error('Error saving inventory report:', error);
+  }
+};
 
 const getInventoryReport = async (req, res) => {
-    try {
-      const { startDate, endDate, month } = req.query;
-      console.log("startDate:",startDate)
-      console.log("endDate:",endDate)
-      let startPeriod, endPeriod;
-      
-      // Xử lý filter theo tháng hoặc khoảng thời gian
-      if (month) {
-        const [monthNum, year] = month.split('-');
-        startPeriod = new Date(year, parseInt(monthNum) - 1, 1);
-        endPeriod = new Date(year, parseInt(monthNum), 0);
-      } else if (startDate && endDate) {
-        startPeriod = new Date(startDate);
-        endPeriod = new Date(endDate);
-      } else {
-        const now = new Date();
-        startPeriod = new Date(now.getFullYear(), now.getMonth(), 1);
-        endPeriod = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      }
-  
-      console.log('Query Period:', {
-        startPeriod: startPeriod.toISOString(),
-        endPeriod: endPeriod.toISOString()
-      });
-  
-      // Lấy danh sách sản phẩm và category
-      const products = await Product.findAll({
-        include: [
-          {
-            model: Category,
-            as: 'category',
-            attributes: ['name']
-          }
-        ]
-      });
-  
-      // Lấy chi tiết nhập kho
-      const purchaseDetails = await PurchaseOrderDetail.findAll({
-        include: [
-          {
-            model: PurchaseOrder,
-            as: 'purchaseOrder',
-            where: {
-              dateImport: {
-                [Op.between]: [startPeriod, endPeriod]
-              }
-            }
-          },
-          {
-            model: Product,
-            as: 'product',
-          }
-        ]
-      });
-  
-      console.log('Purchase Details Found:', purchaseDetails.length);
-      // Log một vài record đầu tiên để kiểm tra
-      if (purchaseDetails.length > 0) {
-        console.log('Sample Purchase Detail:', {
-          purchaseOrderId: purchaseDetails[0].purchaseOrderId,
-          dateImport: purchaseDetails[0].purchaseOrder?.dateImport,
-          quantity: purchaseDetails[0].quantity
-        });
-      }
-  
-      // Lấy chi tiết xuất kho
-      const exportDetails = await ExportOrderDetail.findAll({
-        include: [
-          {
-            model: ExportOrder,
-            as: 'exportOrder',
-            where: {
-              dateExport: {
-                [Op.between]: [
-                  startPeriod.toISOString().split('T')[0], 
-                  endPeriod.toISOString().split('T')[0]
-                ]
-              },
-              status: 1
-            }
-          },
-          {
-            model: Product,
-            as: 'product',
-          }
-        ]
-      });
-  
-      console.log('Export Details Found:', exportDetails.length);
-      // Log một vài record đầu tiên để kiểm tra
-      if (exportDetails.length > 0) {
-        console.log('Sample Export Detail:', {
-          exportOrderId: exportDetails[0].exportOrderId,
-          dateExport: exportDetails[0].exportOrder?.dateExport,
-          quantity: exportDetails[0].quantity
-        });
-      }
-  
-      // Tính toán báo cáo cho từng sản phẩm
-      const inventoryReport = products.map(product => {
+  try {
+    const { startDate, endDate, month } = req.query;
+    let startPeriod, endPeriod;
+    let isCurrentPeriod = false;
+    
+    // Xác định khoảng thời gian
+    if (month) {
+      const [monthNum, year] = month.split('-');
+      startPeriod = new Date(year, parseInt(monthNum) - 1, 1);
+      endPeriod = new Date(year, parseInt(monthNum), 0);
+    } else if (startDate && endDate) {
+      startPeriod = new Date(startDate);
+      endPeriod = new Date(endDate);
+    } else {
+      // Nếu không có tham số, xem như là tháng hiện tại
+      const now = new Date();
+      startPeriod = new Date(now.getFullYear(), now.getMonth(), 1);
+      endPeriod = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      isCurrentPeriod = true;
+    }
 
+    const currentMonth = startPeriod.getMonth() + 1;
+    const currentYear = startPeriod.getFullYear();
 
+    // Kiểm tra và lấy báo cáo tồn kho
+    const existingReport = await InventoryReport.findOne({
+      where: {
+        month: currentMonth,
+        year: currentYear
+      }
+    });
 
-        // Tính tổng số lượng nhập
-        const totalImported = purchaseDetails
-          .filter(detail => Number(detail.productId) === Number(product.id))
-          .reduce((sum, detail) => {
-            const quantity = Number(detail.quantity || 0);
-            console.log(`AAAImport for product ${product.id}: ${quantity}`);
-            return sum + quantity;
-          }, 0);
-  
-        // Tính tổng số lượng xuất
-        const totalExported = exportDetails
-          .filter(detail => Number(detail.productId) === Number(product.id))
-          .reduce((sum, detail) => {
-            const quantity = Number(detail.quantity || 0);
-            console.log(`AAAExport for product ${product.id}: ${quantity}`);
-            return sum + quantity;
-          }, 0);
-  
-        console.log(`Product ${product.id} Summary:`, {
-          totalImported,
-          totalExported
-        });
-  
-        const endingInventory = parseInt(product.inventory_quantity || 0);
-        const beginningInventory = endingInventory - totalImported + totalExported;
-        const inventoryValue = endingInventory * parseInt(product.price || 0);
-  
-        return {
-          product_id: product.id,
-          product_name: product.product_name,
-          category_name: product.category?.name || 'Chưa phân loại',
-          unit: product.unit_calc,
-          beginning_inventory: beginningInventory,
-          quantity_imported: totalImported,
-          quantity_exported: totalExported,
-          ending_inventory: endingInventory,
-          unit_price: parseInt(product.price || 0),
-          inventory_value: inventoryValue,
-          last_updated: product.warehouse_latest
-        };
-      });
-  
-      // Thêm log để kiểm tra raw query
-      console.log('Raw Query Conditions:', {
-        dateImport: {
-          between: [startPeriod, endPeriod]
+    let inventoryReport;
+
+    // Nếu không có báo cáo hoặc là tháng hiện tại, tính toán lại
+    if (!existingReport || isCurrentPeriod) {
+      // Chạy hàm tính toán báo cáo
+      await saveInventoryReportPeriodically();
+
+      // Lấy lại báo cáo vừa tính
+      inventoryReport = await InventoryReport.findAll({
+        where: {
+          month: currentMonth,
+          year: currentYear
         },
-        dateExport: {
-          between: [
-            startPeriod.toISOString().split('T')[0],
-            endPeriod.toISOString().split('T')[0]
-          ]
-        }
+        include: [
+          {
+            model: Product,
+            as: 'product',
+            include: [
+              {
+                model: Category,
+                as: 'category',
+                attributes: ['name']
+              }
+            ]
+          }
+        ]
       });
-  
-      const summaryReport = {
-        total_beginning: inventoryReport.reduce((sum, item) => sum + item.beginning_inventory, 0),
-        total_imported: inventoryReport.reduce((sum, item) => sum + item.quantity_imported, 0),
-        total_exported: inventoryReport.reduce((sum, item) => sum + item.quantity_exported, 0),
-        total_ending: inventoryReport.reduce((sum, item) => sum + item.ending_inventory, 0),
-        total_value: inventoryReport.reduce((sum, item) => sum + item.inventory_value, 0),
-      };
-  
-      res.json({data: {
-        success: true,
-        
-          period: {
-            start_date: startPeriod.toISOString().split('T')[0],
-            end_date: endPeriod.toISOString().split('T')[0]
-          },
-          summary: summaryReport,
-          details: inventoryReport
-        }
-      });
-  
-    } catch (error) {
-      console.error('Error generating inventory report:', error);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        message: error.message
+    } else {
+      // Nếu đã có báo cáo, lấy báo cáo đã lưu
+      inventoryReport = await InventoryReport.findAll({
+        where: {
+          month: currentMonth,
+          year: currentYear
+        },
+        include: [
+          {
+            model: Product,
+            as: 'product',
+            include: [
+              {
+                model: Category,
+                as: 'category',
+                attributes: ['name']
+              }
+            ]
+          }
+        ]
       });
     }
-  };
+
+    // Tính tổng kết
+    const summaryReport = {
+      total_beginning: inventoryReport.reduce((sum, item) => sum + item.beginningInventory, 0),
+      total_imported: inventoryReport.reduce((sum, item) => sum + item.quantityImported, 0),
+      total_exported: inventoryReport.reduce((sum, item) => sum + item.quantityExported, 0),
+      total_ending: inventoryReport.reduce((sum, item) => sum + item.endingInventory, 0),
+      total_value: inventoryReport.reduce((sum, item) => sum + item.inventoryValue, 0),
+    };
+
+    res.json({
+      success: true,
+      data: {
+        period: {
+          start_date: startPeriod.toISOString().split('T')[0],
+          end_date: endPeriod.toISOString().split('T')[0]
+        },
+        summary: summaryReport,
+        details: inventoryReport.map(report => ({
+          product_id: report.product.id,
+          product_name: report.product.product_name,
+          category_name: report.product.category?.name || 'Chưa phân loại',
+          unit: report.product.unit_calc,
+          beginning_inventory: report.beginningInventory,
+          quantity_imported: report.quantityImported,
+          quantity_exported: report.quantityExported,
+          ending_inventory: report.endingInventory,
+          unit_price: report.unitPrice,
+          inventory_value: report.inventoryValue,
+          last_updated: report.updatedAt
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Error generating inventory report:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+};
 
 // Tạo API endpoint kiểm tra tính hợp lệ của dữ liệu đầu vào
 const validateDateRange = (req, res, next) => {
@@ -276,9 +315,7 @@ const getOverallStats = async (req, res) => {
       const orders = await ExportOrder.findAll({
         where: {
           ...dateCondition,
-          userId: {
-            [Op.in]: sequelize.literal(`(SELECT id FROM Users WHERE role = 'SALE')`)
-          }
+          
         }
       });
 

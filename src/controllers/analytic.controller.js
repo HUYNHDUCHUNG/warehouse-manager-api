@@ -668,7 +668,8 @@ const getOrderStatistics = async (req, res) => {
       return {
         name: `T${month}`,
         Orders: totalOrders,
-        ExportOrder: Number(exportData.exportCount)
+        ExportOrder: Number(exportData.exportCount),
+        PurchaseOrder: Number(purchaseData.purchaseCount)
       };
     });
 
