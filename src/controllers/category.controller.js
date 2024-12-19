@@ -28,22 +28,33 @@ const getAllCategory = async (req,res,next) =>{
         return next(createError(500))
     }
 }
-const updateCategoryById = async (req,res,next) =>{
+const updateCategoryById = async (req, res, next) => {
     try {
-        const {id,name} = req.params
-        const newCategory = await Category.update({
-            name
-        },
-        {
-            where: id
-        }
-        )
-        return res.json({
-            data:newCategory
-        })
+        const { id } = req.params
+        const { name } = req.body
         
+        // Update category
+        const [updatedCount] = await Category.update(
+            { name },
+            { 
+                where: { id: id }  // Sửa lại cú pháp where
+            }
+        )
+
+        if (updatedCount === 0) {
+            return res.status(404).json({
+                message: 'Không tìm thấy danh mục'
+            })
+        }
+
+        // Fetch updated category to return
+        const updatedCategory = await Category.findByPk(id)
+        
+        return res.json({data:updatedCategory})
+
     } catch (error) {
-        return next(createError(500))
+        console.error('Update error:', error)
+        return next(error)
     }
 }
 
