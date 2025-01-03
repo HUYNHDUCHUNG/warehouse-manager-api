@@ -168,7 +168,8 @@ const getAllExportOrder = async (req,res,next) =>{
             exclude:['password']
           }
         },
-      ]
+      ],
+      order: [['createdAt', 'DESC']]
     });
 
     const processedExportOrders = exportOrders.map(order => {
